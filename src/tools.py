@@ -16,57 +16,18 @@ def get_related_companies(ticker: str) -> dict:
     Returns:
         dict: Related companies data containing similar tickers and their details
     """
-    headers = {"Authorization": f"Bearer {os.environ.get('POLYGON_API_KEY')}"}
+    # Get company details and peers
+    peers_data = get_industry_peers(ticker)
+    base_company = peers_data['base_company']
     
-    # First get the company's SIC code
-    base_url = f"https://api.polygon.io/v3/reference/tickers/{ticker}"
-    response = requests.get(base_url, headers=headers)
-    
-    if response.status_code != 200:
-        raise Exception(f"Error fetching company details: {response.status_code} - {response.text}")
-    
-    base_company = response.json().get('results', {})
-    sic_code = base_company.get('sic_code')
-    
-    if not sic_code:
-        raise ValueError(f"No SIC code found for {ticker}")
-    
-    # Get all companies with the same SIC code
-    peers_url = f"https://api.polygon.io/v3/reference/tickers?sic_code={sic_code}&active=true&market=stocks&limit=20"
-    peers_response = requests.get(peers_url, headers=headers)
-    
-    if peers_response.status_code != 200:
-        raise Exception(f"Error fetching peer companies: {peers_response.status_code} - {peers_response.text}")
-    
-    peers_data = peers_response.json()
-    similar_companies = peers_data.get('results', [])
-    
-    # Filter out the original company and get details
-    similar_tickers = [
-        company['ticker'] for company in similar_companies 
-        if company['ticker'] != ticker and company.get('market') == 'stocks'
-    ][:5]  # Limit to 5 peers
-    
-    # Get details for each similar company
-    peer_details = []
-    for peer_ticker in similar_tickers:
-        try:
-            time.sleep(0.2)  # Rate limiting
-            peer_url = f"https://api.polygon.io/v3/reference/tickers/{peer_ticker}"
-            peer_response = requests.get(peer_url, headers=headers)
-            if peer_response.status_code == 200:
-                peer_data = peer_response.json().get('results', {})
-                if peer_data and peer_data.get('market') == 'stocks':  # Double check it's a stock
-                    peer_details.append(peer_data)
-        except Exception as e:
-            print(f"Error getting details for {peer_ticker}: {str(e)}")
-            continue
+    # Extract peer tickers and details
+    similar_tickers = [peer['ticker'] for peer in peers_data['peers']]
     
     return {
         'similar_tickers': similar_tickers,
-        'peer_details': peer_details,
+        'peer_details': peers_data['peers'],
         'base_company': base_company,
-        'sic_code': sic_code,
+        'sic_code': base_company.get('sic_code'),
         'sic_description': base_company.get('sic_description')
     }
 
@@ -571,88 +532,103 @@ def calculate_revenue_multiple(ticker: str) -> dict:
     """
     pass
 
-def get_industry_peers(ticker: str, use_sic_code: bool = True) -> dict:
+def get_industry_peers(ticker: str) -> dict:
     """
     Get peers based on industry classification.
     
     Args:
         ticker (str): The stock ticker symbol
-        use_sic_code (bool): If True, matches exact SIC code. If False, uses SIC description
     
     Returns:
-        dict: Industry peers containing:
-            - base_company: Details of the input company
-            - industry_classification: SIC code or description used
-            - peers: List of peer companies in same industry
+        dict: Industry peers containing base company and peer details
     """
     # Get base company details
     base_company = get_ticker_details(ticker)
-    
-    # Get classification to match
-    if use_sic_code:
-        match_key = 'sic_code'
-        match_value = base_company['sic_code']
-    else:
-        match_key = 'sic_description'
-        match_value = base_company['sic_description']
-    
-    # Get peers directly from Polygon API with better filtering
+    if not base_company.get('sic_code'):
+        raise ValueError(f"No SIC code found for {ticker}")
+
+    # Set up API request
     headers = {"Authorization": f"Bearer {os.environ.get('POLYGON_API_KEY')}"}
+    peers = []
     
-    # First get all tickers in the same SIC code
-    peers_url = (
+    # Use ticker search endpoint with SIC code
+    url = (
         f"https://api.polygon.io/v3/reference/tickers?"
-        f"sic_code={base_company['sic_code']}"
-        f"&active=true"
-        f"&market=stocks"
-        f"&sort=market_cap"  # Sort by market cap
-        f"&order=desc"       # Descending order (largest first)
-        f"&limit=50"         # Get more results to filter
+        f"search={base_company['sic_description']}"  # Search by industry description
+        f"&market=stocks&active=true&limit=100"
     )
     
-    peers_response = requests.get(peers_url, headers=headers)
-    
-    if peers_response.status_code != 200:
-        raise Exception(f"Error fetching peer companies: {peers_response.status_code} - {peers_response.text}")
-    
-    peers_data = peers_response.json()
-    similar_companies = peers_data.get('results', [])
-    
-    # Filter and enrich peer data
-    industry_peers = []
-    for peer in similar_companies:
-        if peer['ticker'] == ticker:  # Skip the original company
-            continue
-            
-        try:
-            # Get detailed info for each peer
-            time.sleep(0.2)  # Rate limiting
-            peer_details = get_ticker_details(peer['ticker'])
-            
-            # Only include peers that:
-            # 1. Have market cap data
-            # 2. Match the SIC code exactly
-            # 3. Are not the original company
-            if (peer_details and 
-                peer_details.get('market_cap') and 
-                peer_details.get('sic_code') == base_company['sic_code']):
-                industry_peers.append(peer_details)
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            raise Exception(f"API error: {response.status_code} - {response.text}")
+        
+        data = response.json()
+        results = data.get('results', [])
+        
+        # Filter and process results
+        for company in results:
+            if (company['ticker'] != ticker and  # Skip original company
+                company.get('sic_code') == base_company['sic_code'] and  # Same industry
+                company.get('market') == 'stocks' and  # Is a stock
+                company.get('type') == 'CS'):  # Common stock only
                 
-                # Break after getting 5 valid peers
-                if len(industry_peers) >= 5:
-                    break
-                    
-        except Exception as e:
-            print(f"Error getting details for {peer['ticker']}: {str(e)}")
-            continue
+                try:
+                    time.sleep(0.12)  # Rate limiting
+                    details = get_ticker_details(company['ticker'])
+                    if details and details.get('market_cap'):
+                        peers.append(details)
+                except Exception as e:
+                    print(f"Error getting details for {company['ticker']}: {str(e)}")
+                    continue
+        
+        # If we don't have enough peers, try searching by sector
+        if len(peers) < 5:
+            print(f"Found only {len(peers)} peers by SIC code, trying sector search...")
+            sector_url = (
+                f"https://api.polygon.io/v3/reference/tickers?"
+                f"search={base_company['sector']}"  # Search by sector
+                f"&market=stocks&active=true&limit=100"
+            )
+            
+            sector_response = requests.get(sector_url, headers=headers)
+            if sector_response.status_code == 200:
+                sector_data = sector_response.json()
+                sector_results = sector_data.get('results', [])
+                
+                for company in sector_results:
+                    if len(peers) >= 5:
+                        break
+                        
+                    if (company['ticker'] != ticker and  # Skip original company
+                        company.get('market') == 'stocks' and  # Is a stock
+                        company.get('type') == 'CS'):  # Common stock only
+                        
+                        try:
+                            time.sleep(0.12)  # Rate limiting
+                            details = get_ticker_details(company['ticker'])
+                            if (details and 
+                                details.get('market_cap') and 
+                                details['ticker'] not in [p['ticker'] for p in peers] and
+                                details.get('sector') == base_company['sector']):  # Same sector
+                                peers.append(details)
+                        except Exception as e:
+                            print(f"Error getting details for {company['ticker']}: {str(e)}")
+                            continue
+                            
+    except Exception as e:
+        print(f"Error processing peers: {str(e)}")
+    
+    # Sort peers by market cap
+    peers.sort(key=lambda x: float(x.get('market_cap', 0)), reverse=True)
     
     return {
         'base_company': base_company,
         'industry_classification': {
-            'type': 'SIC Code' if use_sic_code else 'SIC Description',
-            'value': match_value
+            'type': 'SIC Code',
+            'value': base_company['sic_code']
         },
-        'peers': industry_peers
+        'peers': peers[:5]  # Return top 5 peers by market cap
     }
 
 def filter_by_market_cap(companies: list, target_cap: float, range_percent: float = 0.5) -> list:
@@ -1173,4 +1149,59 @@ def get_ticker_details(ticker: str) -> dict:
         'primary_exchange': results.get('primary_exchange'),
         'type': results.get('type')
     }
+
+def get_related_tickers(ticker: str) -> list:
+    """
+    Get related tickers using Polygon.io's related companies endpoint.
+    
+    Args:
+        ticker (str): The stock ticker symbol
+    
+    Returns:
+        list: List of related ticker symbols
+    """
+    headers = {"Authorization": f"Bearer {os.environ.get('POLYGON_API_KEY')}"}
+    url = f"https://api.polygon.io/v1/related-companies/{ticker}"
+    
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"Error getting related tickers: {response.status_code} - {response.text}")
+            return []
+    except Exception as e:
+        print(f"Error in get_related_tickers: {str(e)}")
+        return []
+
+def search_tickers(query: str, market: str = 'stocks', limit: int = 100) -> list:
+    """
+    Search for tickers using Polygon.io's search endpoint.
+    
+    Args:
+        query (str): Search query (company name, ticker, etc.)
+        market (str): Market type (stocks, crypto, fx)
+        limit (int): Maximum number of results
+        
+    Returns:
+        list: List of matching tickers
+    """
+    headers = {"Authorization": f"Bearer {os.environ.get('POLYGON_API_KEY')}"}
+    url = (
+        f"https://api.polygon.io/v3/reference/tickers?"
+        f"search={query}"
+        f"&market={market}&active=true&limit={limit}"
+    )
+    
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            return data.get('results', [])
+        else:
+            print(f"Error searching tickers: {response.status_code} - {response.text}")
+            return []
+    except Exception as e:
+        print(f"Error in search_tickers: {str(e)}")
+        return []
 

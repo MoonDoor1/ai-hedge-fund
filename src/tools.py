@@ -2,8 +2,73 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 import requests
+import time
 import os
 
+
+def get_related_companies(ticker: str) -> dict:
+    """
+    Get related companies and competitors using Polygon.io API.
+    
+    Args:
+        ticker (str): The stock ticker symbol (e.g., 'AAPL')
+    
+    Returns:
+        dict: Related companies data containing similar tickers and their details
+    """
+    headers = {"Authorization": f"Bearer {os.environ.get('POLYGON_API_KEY')}"}
+    
+    # First get the company's SIC code
+    base_url = f"https://api.polygon.io/v3/reference/tickers/{ticker}"
+    response = requests.get(base_url, headers=headers)
+    
+    if response.status_code != 200:
+        raise Exception(f"Error fetching company details: {response.status_code} - {response.text}")
+    
+    base_company = response.json().get('results', {})
+    sic_code = base_company.get('sic_code')
+    
+    if not sic_code:
+        raise ValueError(f"No SIC code found for {ticker}")
+    
+    # Get all companies with the same SIC code
+    peers_url = f"https://api.polygon.io/v3/reference/tickers?sic_code={sic_code}&active=true&market=stocks&limit=20"
+    peers_response = requests.get(peers_url, headers=headers)
+    
+    if peers_response.status_code != 200:
+        raise Exception(f"Error fetching peer companies: {peers_response.status_code} - {peers_response.text}")
+    
+    peers_data = peers_response.json()
+    similar_companies = peers_data.get('results', [])
+    
+    # Filter out the original company and get details
+    similar_tickers = [
+        company['ticker'] for company in similar_companies 
+        if company['ticker'] != ticker and company.get('market') == 'stocks'
+    ][:5]  # Limit to 5 peers
+    
+    # Get details for each similar company
+    peer_details = []
+    for peer_ticker in similar_tickers:
+        try:
+            time.sleep(0.2)  # Rate limiting
+            peer_url = f"https://api.polygon.io/v3/reference/tickers/{peer_ticker}"
+            peer_response = requests.get(peer_url, headers=headers)
+            if peer_response.status_code == 200:
+                peer_data = peer_response.json().get('results', {})
+                if peer_data and peer_data.get('market') == 'stocks':  # Double check it's a stock
+                    peer_details.append(peer_data)
+        except Exception as e:
+            print(f"Error getting details for {peer_ticker}: {str(e)}")
+            continue
+    
+    return {
+        'similar_tickers': similar_tickers,
+        'peer_details': peer_details,
+        'base_company': base_company,
+        'sic_code': sic_code,
+        'sic_description': base_company.get('sic_description')
+    }
 
 def get_prices(ticker, start_date, end_date):
     """Fetch price data from the API."""
@@ -360,7 +425,7 @@ def analyze_volatility_events(ticker: str, start_date: str = None, end_date: str
 
 def get_revenue_data(ticker: str, period: str = 'annual') -> dict:
     """
-    Retrieves revenue data for a given stock ticker.
+    Retrieves revenue data for a given stock ticker using Polygon.io API.
     
     Args:
         ticker (str): The stock ticker symbol (e.g., 'AAPL')
@@ -373,32 +438,92 @@ def get_revenue_data(ticker: str, period: str = 'annual') -> dict:
         dict: Revenue data containing:
             - 'revenue': Revenue value in USD
             - 'period_end': End date of the period
-            - 'growth': Year-over-year growth rate (if available)
-    
-    Raises:
-        ValueError: If ticker is invalid or data cannot be retrieved
-        ValueError: If period is not one of 'annual', 'quarterly', or 'ttm'
+            - 'growth': Year-over-year growth rate
+            - 'revenue_per_share': Revenue per share
+            - 'historical_data': List of historical revenue data points
     """
-    pass
-
-def get_sector_classification(ticker: str) -> dict:
-    """
-    Retrieves sector and industry classification for a given stock ticker.
+    headers = {"Authorization": f"Bearer {os.environ.get('POLYGON_API_KEY')}"}
     
-    Args:
-        ticker (str): The stock ticker symbol (e.g., 'AAPL')
+    # First get company details for shares outstanding
+    details_url = f"https://api.polygon.io/v3/reference/tickers/{ticker}?apiKey={os.environ.get('POLYGON_API_KEY')}"
+    details_response = requests.get(details_url)
     
-    Returns:
-        dict: Classification data containing:
-            - 'sector': Main sector (e.g., 'Technology')
-            - 'industry': Specific industry (e.g., 'Consumer Electronics')
-            - 'sub_industry': Sub-industry classification if available
-            - 'peer_group': List of peer company tickers
+    if details_response.status_code != 200:
+        raise Exception(f"Error fetching company details: {details_response.status_code} - {details_response.text}")
     
-    Raises:
-        ValueError: If ticker is invalid or data cannot be retrieved
-    """
-    pass
+    company_details = details_response.json().get('results', {})
+    shares_outstanding = company_details.get('weighted_shares_outstanding', 0)
+    
+    # Get financial statements using the correct endpoint
+    timespan = 'quarter' if period == 'quarterly' else 'annual'
+    financials_url = f"https://api.polygon.io/vX/reference/financials?ticker={ticker}&timeframe={timespan}&limit=8&apiKey={os.environ.get('POLYGON_API_KEY')}"
+    financials_response = requests.get(financials_url)
+    
+    if financials_response.status_code != 200:
+        raise Exception(f"Error fetching financials: {financials_response.status_code} - {financials_response.text}")
+    
+    financials_data = financials_response.json()
+    results = financials_data.get('results', [])
+    
+    if not results:
+        raise ValueError(f"No financial data found for {ticker}")
+    
+    # Sort results by date to get most recent first
+    results.sort(key=lambda x: x.get('end_date', ''), reverse=True)
+    
+    # Get the most recent data point
+    current = results[0]
+    
+    # Find previous year's data for growth calculation
+    previous_year = None
+    current_end_date = datetime.strptime(current.get('end_date', ''), '%Y-%m-%d')
+    
+    for result in results[1:]:
+        result_date = datetime.strptime(result.get('end_date', ''), '%Y-%m-%d')
+        date_diff = (current_end_date - result_date).days
+        
+        # For quarterly, look back 4 quarters; for annual, look back 1 year
+        if (period == 'quarterly' and 350 <= date_diff <= 380) or \
+           (period == 'annual' and 350 <= date_diff <= 380):
+            previous_year = result
+            break
+    
+    # Calculate growth rate if previous year data exists
+    growth_rate = None
+    if previous_year:
+        current_revenue = current.get('financials', {}).get('income_statement', {}).get('revenues', {}).get('value', 0)
+        prev_revenue = previous_year.get('financials', {}).get('income_statement', {}).get('revenues', {}).get('value', 0)
+        if prev_revenue and prev_revenue != 0:
+            growth_rate = (current_revenue - prev_revenue) / prev_revenue
+    
+    # Get current revenue
+    current_revenue = current.get('financials', {}).get('income_statement', {}).get('revenues', {}).get('value')
+    
+    # Calculate revenue per share
+    revenue_per_share = current_revenue / shares_outstanding if current_revenue and shares_outstanding else None
+    
+    # Prepare historical data
+    historical = []
+    for result in results:
+        revenue = result.get('financials', {}).get('income_statement', {}).get('revenues', {}).get('value')
+        if revenue:
+            historical.append({
+                'period_end': result.get('end_date'),
+                'revenue': revenue,
+                'fiscal_period': result.get('fiscal_period'),
+                'fiscal_year': result.get('fiscal_year')
+            })
+    
+    return {
+        'revenue': current_revenue,
+        'period_end': current.get('end_date'),
+        'growth': growth_rate,
+        'revenue_per_share': revenue_per_share,
+        'historical_data': historical,
+        'currency': current.get('financials', {}).get('income_statement', {}).get('revenues', {}).get('unit', 'USD'),
+        'fiscal_period': current.get('fiscal_period'),
+        'fiscal_year': current.get('fiscal_year')
+    }
 
 def get_analyst_ratings(ticker: str) -> dict:
     """
@@ -446,26 +571,283 @@ def calculate_revenue_multiple(ticker: str) -> dict:
     """
     pass
 
+def get_industry_peers(ticker: str, use_sic_code: bool = True) -> dict:
+    """
+    Get peers based on industry classification.
+    
+    Args:
+        ticker (str): The stock ticker symbol
+        use_sic_code (bool): If True, matches exact SIC code. If False, uses SIC description
+    
+    Returns:
+        dict: Industry peers containing:
+            - base_company: Details of the input company
+            - industry_classification: SIC code or description used
+            - peers: List of peer companies in same industry
+    """
+    # Get base company details
+    base_company = get_ticker_details(ticker)
+    
+    # Get classification to match
+    if use_sic_code:
+        match_key = 'sic_code'
+        match_value = base_company['sic_code']
+    else:
+        match_key = 'sic_description'
+        match_value = base_company['sic_description']
+    
+    # Get peers directly from Polygon API with better filtering
+    headers = {"Authorization": f"Bearer {os.environ.get('POLYGON_API_KEY')}"}
+    
+    # First get all tickers in the same SIC code
+    peers_url = (
+        f"https://api.polygon.io/v3/reference/tickers?"
+        f"sic_code={base_company['sic_code']}"
+        f"&active=true"
+        f"&market=stocks"
+        f"&sort=market_cap"  # Sort by market cap
+        f"&order=desc"       # Descending order (largest first)
+        f"&limit=50"         # Get more results to filter
+    )
+    
+    peers_response = requests.get(peers_url, headers=headers)
+    
+    if peers_response.status_code != 200:
+        raise Exception(f"Error fetching peer companies: {peers_response.status_code} - {peers_response.text}")
+    
+    peers_data = peers_response.json()
+    similar_companies = peers_data.get('results', [])
+    
+    # Filter and enrich peer data
+    industry_peers = []
+    for peer in similar_companies:
+        if peer['ticker'] == ticker:  # Skip the original company
+            continue
+            
+        try:
+            # Get detailed info for each peer
+            time.sleep(0.2)  # Rate limiting
+            peer_details = get_ticker_details(peer['ticker'])
+            
+            # Only include peers that:
+            # 1. Have market cap data
+            # 2. Match the SIC code exactly
+            # 3. Are not the original company
+            if (peer_details and 
+                peer_details.get('market_cap') and 
+                peer_details.get('sic_code') == base_company['sic_code']):
+                industry_peers.append(peer_details)
+                
+                # Break after getting 5 valid peers
+                if len(industry_peers) >= 5:
+                    break
+                    
+        except Exception as e:
+            print(f"Error getting details for {peer['ticker']}: {str(e)}")
+            continue
+    
+    return {
+        'base_company': base_company,
+        'industry_classification': {
+            'type': 'SIC Code' if use_sic_code else 'SIC Description',
+            'value': match_value
+        },
+        'peers': industry_peers
+    }
+
+def filter_by_market_cap(companies: list, target_cap: float, range_percent: float = 0.5) -> list:
+    """
+    Filter companies by market cap within a specified range of a target.
+    
+    Args:
+        companies (list): List of company dictionaries with market_cap field
+        target_cap (float): Target market cap to compare against
+        range_percent (float): Percentage range above and below target (0.5 = ±50%)
+    
+    Returns:
+        list: Filtered list of companies within market cap range
+    """
+    min_cap = target_cap * (1 - range_percent)
+    max_cap = target_cap * (1 + range_percent)
+    
+    return [
+        company for company in companies
+        if company.get('market_cap') and min_cap <= company['market_cap'] <= max_cap
+    ]
+
+def get_comparable_peers(ticker: str, use_sic_code: bool = True, market_cap_range: float = 0.5) -> dict:
+    """
+    Get comprehensive peer analysis based on industry and market cap.
+    
+    Args:
+        ticker (str): The stock ticker symbol
+        use_sic_code (bool): Whether to use exact SIC code matching
+        market_cap_range (float): Market cap range for filtering (0.5 = ±50%)
+    
+    Returns:
+        dict: Peer analysis containing:
+            - base_company: Original company details
+            - industry_peers: All peers in same industry
+            - size_peers: Peers within market cap range
+            - comparable_peers: Peers matching both criteria
+    """
+    # Get industry peers first
+    industry_analysis = get_industry_peers(ticker, use_sic_code)
+    base_company = industry_analysis['base_company']
+    industry_peers = industry_analysis['peers']
+    
+    # Get size-based peers
+    size_peers = filter_by_market_cap(
+        industry_analysis['peers'],
+        base_company['market_cap'],
+        market_cap_range
+    )
+    
+    return {
+        'base_company': base_company,
+        'industry_classification': industry_analysis['industry_classification'],
+        'total_industry_peers': len(industry_peers),
+        'industry_peers': industry_peers,
+        'size_filtered_peers': size_peers,
+        'market_cap_range': {
+            'min': base_company['market_cap'] * (1 - market_cap_range),
+            'max': base_company['market_cap'] * (1 + market_cap_range)
+        }
+    }
+
 def analyze_sector_metrics(ticker: str) -> dict:
     """
-    Analyzes sector-specific metrics and comparisons.
+    Analyzes sector-specific metrics and comparisons using peer analysis.
     
     Args:
         ticker (str): The stock ticker symbol (e.g., 'AAPL')
     
     Returns:
-        dict: Sector analysis containing:
-            - 'sector_name': Name of the sector
-            - 'sector_metrics': Dict of key sector metrics
-            - 'peer_rankings': Company's rank among peers
-            - 'sector_average_multiple': Average revenue multiple for sector
-            - 'sector_median_multiple': Median revenue multiple for sector
-            - 'percentile_rank': Company's percentile in sector
-    
-    Raises:
-        ValueError: If ticker is invalid or data cannot be retrieved
+        dict: Sector analysis containing sector metrics and peer comparisons
     """
-    pass
+    try:
+        # Get base company details and metrics
+        company_details = get_ticker_details(ticker)
+        if not company_details.get('market_cap'):
+            raise ValueError(f"No market cap data available for {ticker}")
+            
+        company_metrics = analyze_financial_metrics(ticker)
+        
+        # Get peer analysis
+        peer_analysis = get_comparable_peers(ticker)
+        peers = peer_analysis.get('size_filtered_peers', [])
+        
+        if not peers:
+            return {
+                'sector_name': company_details.get('sector', 'Unknown'),
+                'industry': company_details.get('industry', 'Unknown'),
+                'sector_metrics': {
+                    'revenue_multiple': {
+                        'company': None,
+                        'average': None,
+                        'median': None,
+                        'percentile': None
+                    }
+                },
+                'peer_rankings': {
+                    'net_margin_rank': None,
+                    'roe_rank': None,
+                    'total_peers': 0
+                },
+                'total_peers_analyzed': 0,
+                'analysis_date': datetime.now().strftime('%Y-%m-%d')
+            }
+        
+        # Calculate revenue multiples for company and peers
+        company_revenue = get_revenue_data(ticker)
+        company_multiple = (company_details['market_cap'] / company_revenue['revenue'] 
+                          if company_revenue.get('revenue') and company_revenue['revenue'] != 0 
+                          else None)
+        
+        peer_multiples = []
+        peer_metrics = []
+        
+        for peer in peers:
+            try:
+                if not peer.get('market_cap'):
+                    continue
+                    
+                peer_revenue = get_revenue_data(peer['ticker'])
+                if peer_revenue.get('revenue') and peer_revenue['revenue'] != 0:
+                    peer_multiple = peer['market_cap'] / peer_revenue['revenue']
+                    peer_multiples.append(peer_multiple)
+                
+                # Get peer financial metrics
+                peer_metric = analyze_financial_metrics(peer['ticker'])
+                if peer_metric:
+                    peer_metrics.append(peer_metric)
+            except Exception as e:
+                print(f"Error processing peer {peer.get('ticker', 'Unknown')}: {str(e)}")
+                continue
+        
+        # Calculate sector averages
+        sector_metrics = {
+            'revenue_multiple': {
+                'average': sum(peer_multiples) / len(peer_multiples) if peer_multiples else None,
+                'median': sorted(peer_multiples)[len(peer_multiples)//2] if peer_multiples else None,
+                'company': company_multiple,
+                'percentile': (sum(1 for x in peer_multiples if x < company_multiple) / len(peer_multiples) 
+                             if peer_multiples and company_multiple is not None else None)
+            }
+        }
+        
+        # Only calculate these metrics if we have valid peer data
+        if peer_metrics:
+            valid_margins = [p['profitability']['net_margin'] for p in peer_metrics 
+                           if p.get('profitability', {}).get('net_margin') is not None]
+            valid_roes = [p['profitability']['roe'] for p in peer_metrics 
+                         if p.get('profitability', {}).get('roe') is not None]
+            valid_debt_equity = [p['solvency']['debt_to_equity'] for p in peer_metrics 
+                               if p.get('solvency', {}).get('debt_to_equity') is not None]
+            
+            sector_metrics.update({
+                'profitability': {
+                    'average_margin': sum(valid_margins) / len(valid_margins) if valid_margins else None,
+                    'average_roe': sum(valid_roes) / len(valid_roes) if valid_roes else None
+                },
+                'solvency': {
+                    'average_debt_to_equity': sum(valid_debt_equity) / len(valid_debt_equity) if valid_debt_equity else None
+                }
+            })
+        
+        # Calculate company's rankings
+        company_margin = company_metrics.get('profitability', {}).get('net_margin')
+        company_roe = company_metrics.get('profitability', {}).get('roe')
+        
+        rankings = {
+            'net_margin_rank': (sum(1 for p in peer_metrics 
+                                  if p.get('profitability', {}).get('net_margin') and 
+                                  p['profitability']['net_margin'] > company_margin) + 1
+                              if company_margin is not None else None),
+            'roe_rank': (sum(1 for p in peer_metrics 
+                            if p.get('profitability', {}).get('roe') and 
+                            p['profitability']['roe'] > company_roe) + 1
+                        if company_roe is not None else None),
+            'total_peers': len(peer_metrics)
+        }
+        
+        return {
+            'sector_name': company_details.get('sector', 'Unknown'),
+            'industry': company_details.get('industry', 'Unknown'),
+            'sector_metrics': sector_metrics,
+            'peer_rankings': rankings,
+            'total_peers_analyzed': len(peers),
+            'analysis_date': datetime.now().strftime('%Y-%m-%d')
+        }
+        
+    except Exception as e:
+        print(f"Error in sector analysis: {str(e)}")
+        return {
+            'sector_name': company_details.get('sector', 'Unknown') if 'company_details' in locals() else 'Unknown',
+            'industry': company_details.get('industry', 'Unknown') if 'company_details' in locals() else 'Unknown',
+            'error': str(e),
+            'analysis_date': datetime.now().strftime('%Y-%m-%d')
+        }
 
 def analyze_price_targets(ticker: str) -> dict:
     """
@@ -696,5 +1078,99 @@ def analyze_financial_metrics(ticker: str, period: str = 'quarterly') -> dict:
         'solvency': solvency,
         'period_end': income_stmt.get('report_period'),
         'currency': income_stmt.get('currency')
+    }
+
+def get_ticker_details(ticker: str) -> dict:
+    """
+    Get detailed information about a ticker using Polygon.io API.
+    
+    Args:
+        ticker (str): The stock ticker symbol (e.g., 'AAPL')
+    
+    Returns:
+        dict: Ticker details containing company information
+    """
+    headers = {"Authorization": f"Bearer {os.environ.get('POLYGON_API_KEY')}"}
+    
+    # Get ticker details
+    url = f"https://api.polygon.io/v3/reference/tickers/{ticker}?apiKey={os.environ.get('POLYGON_API_KEY')}"
+    response = requests.get(url)
+    
+    if response.status_code != 200:
+        raise Exception(f"Error fetching ticker details: {response.status_code} - {response.text}")
+    
+    data = response.json()
+    results = data.get('results', {})
+    
+    # Extract SIC code and description
+    sic_code = results.get('sic_code')
+    sic_description = results.get('sic_description', '')
+    
+    # Determine sector and industry from SIC code
+    # This is a simple mapping - you might want to expand this
+    sector_mapping = {
+        '10': 'Metal Mining',
+        '20': 'Food Products',
+        '35': 'Technology',
+        '36': 'Electronics',
+        '37': 'Transportation Equipment',
+        '48': 'Communications',
+        '60': 'Financial',
+        '73': 'Business Services',
+        '80': 'Healthcare',
+        '99': 'Other'
+    }
+    
+    # Get first two digits of SIC code for sector
+    sector_code = sic_code[:2] if sic_code else None
+    sector = sector_mapping.get(sector_code, sic_description.split()[0] if sic_description else None)
+    
+    # Get market cap from ticker snapshot
+    snapshot_url = f"https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/{ticker}?apiKey={os.environ.get('POLYGON_API_KEY')}"
+    snapshot_response = requests.get(snapshot_url)
+    market_cap = None
+    
+    if snapshot_response.status_code == 200:
+        snapshot_data = snapshot_response.json()
+        if 'ticker' in snapshot_data:
+            market_cap = snapshot_data['ticker'].get('market_cap')
+        else:
+            # Try getting market cap from daily values
+            daily = snapshot_data.get('day', {})
+            if daily:
+                last_price = daily.get('c', 0)  # Closing price
+                shares = results.get('weighted_shares_outstanding', 0)
+                if last_price and shares:
+                    market_cap = last_price * shares
+    
+    # If still no market cap, calculate from shares and price
+    if market_cap is None and results.get('weighted_shares_outstanding'):
+        # Get current price from another endpoint
+        aggs_url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev?apiKey={os.environ.get('POLYGON_API_KEY')}"
+        aggs_response = requests.get(aggs_url)
+        if aggs_response.status_code == 200:
+            aggs_data = aggs_response.json()
+            if aggs_data.get('results'):
+                last_price = aggs_data['results'][0].get('c', 0)  # Closing price
+                shares = results.get('weighted_shares_outstanding', 0)
+                market_cap = last_price * shares
+    
+    return {
+        'name': results.get('name'),
+        'ticker': results.get('ticker'),
+        'market_cap': market_cap,
+        'weighted_shares_outstanding': results.get('weighted_shares_outstanding'),
+        'sic_code': sic_code,
+        'sic_description': sic_description,
+        'sector': sector,
+        'industry': sic_description,  # Using full SIC description as industry
+        'description': results.get('description'),
+        'homepage_url': results.get('homepage_url'),
+        'list_date': results.get('list_date'),
+        'locale': results.get('locale'),
+        'market': results.get('market'),
+        'currency_name': results.get('currency_name', 'USD'),
+        'primary_exchange': results.get('primary_exchange'),
+        'type': results.get('type')
     }
 

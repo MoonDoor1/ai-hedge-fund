@@ -5,30 +5,49 @@ import requests
 import time
 import os
 
-
-def get_related_companies(ticker: str) -> dict:
+def get_sic_peers(ticker: str, tolerance: float = 0.0) -> dict:
     """
-    Get related companies and competitors using Polygon.io API.
-    
-    Args:
-        ticker (str): The stock ticker symbol (e.g., 'AAPL')
-    
-    Returns:
-        dict: Related companies data containing similar tickers and their details
+    Get peers based on SIC code matching from related companies.
+    Returns companies in same industry classification.
     """
-    # Get company details and peers
-    peers_data = get_industry_peers(ticker)
-    base_company = peers_data['base_company']
+    # Get related companies first
+    related = get_related_tickers(ticker)
+    if not related or 'results' not in related:
+        return {'error': 'No related companies found'}
     
-    # Extract peer tickers and details
-    similar_tickers = [peer['ticker'] for peer in peers_data['peers']]
+    # Filter by SIC code
+    related_tickers = [company['ticker'] for company in related['results']]
+    sic_filtered = filter_by_sic_code(related_tickers, ticker, tolerance)
     
     return {
-        'similar_tickers': similar_tickers,
-        'peer_details': peers_data['peers'],
-        'base_company': base_company,
-        'sic_code': base_company.get('sic_code'),
-        'sic_description': base_company.get('sic_description')
+        'base_company': get_ticker_details(ticker),
+        'peer_count': len(sic_filtered),
+        'peers': sic_filtered,
+        'classification': 'SIC Code'
+    }
+
+def get_market_cap_peers(ticker: str, min_pct: float = 0.2, max_pct: float = 5.0) -> dict:
+    """
+    Get peers based on market cap range from related companies.
+    Returns similarly sized companies.
+    """
+    # Get related companies first
+    related = get_related_tickers(ticker)
+    if not related or 'results' not in related:
+        return {'error': 'No related companies found'}
+    
+    # Filter by market cap
+    related_tickers = [company['ticker'] for company in related['results']]
+    size_filtered = filter_by_market_cap_range(related_tickers, ticker, min_pct, max_pct)
+    
+    return {
+        'base_company': get_ticker_details(ticker),
+        'peer_count': len(size_filtered),
+        'peers': size_filtered,
+        'market_cap_range': {
+            'min_pct': min_pct,
+            'max_pct': max_pct
+        }
     }
 
 def get_prices(ticker, start_date, end_date):
@@ -532,104 +551,6 @@ def calculate_revenue_multiple(ticker: str) -> dict:
     """
     pass
 
-def get_industry_peers(ticker: str) -> dict:
-    """
-    Get peers based on industry classification.
-    
-    Args:
-        ticker (str): The stock ticker symbol
-    
-    Returns:
-        dict: Industry peers containing base company and peer details
-    """
-    # Get base company details
-    base_company = get_ticker_details(ticker)
-    if not base_company.get('sic_code'):
-        raise ValueError(f"No SIC code found for {ticker}")
-
-    # Set up API request
-    headers = {"Authorization": f"Bearer {os.environ.get('POLYGON_API_KEY')}"}
-    peers = []
-    
-    # Use ticker search endpoint with SIC code
-    url = (
-        f"https://api.polygon.io/v3/reference/tickers?"
-        f"search={base_company['sic_description']}"  # Search by industry description
-        f"&market=stocks&active=true&limit=100"
-    )
-    
-    try:
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            raise Exception(f"API error: {response.status_code} - {response.text}")
-        
-        data = response.json()
-        results = data.get('results', [])
-        
-        # Filter and process results
-        for company in results:
-            if (company['ticker'] != ticker and  # Skip original company
-                company.get('sic_code') == base_company['sic_code'] and  # Same industry
-                company.get('market') == 'stocks' and  # Is a stock
-                company.get('type') == 'CS'):  # Common stock only
-                
-                try:
-                    time.sleep(0.12)  # Rate limiting
-                    details = get_ticker_details(company['ticker'])
-                    if details and details.get('market_cap'):
-                        peers.append(details)
-                except Exception as e:
-                    print(f"Error getting details for {company['ticker']}: {str(e)}")
-                    continue
-        
-        # If we don't have enough peers, try searching by sector
-        if len(peers) < 5:
-            print(f"Found only {len(peers)} peers by SIC code, trying sector search...")
-            sector_url = (
-                f"https://api.polygon.io/v3/reference/tickers?"
-                f"search={base_company['sector']}"  # Search by sector
-                f"&market=stocks&active=true&limit=100"
-            )
-            
-            sector_response = requests.get(sector_url, headers=headers)
-            if sector_response.status_code == 200:
-                sector_data = sector_response.json()
-                sector_results = sector_data.get('results', [])
-                
-                for company in sector_results:
-                    if len(peers) >= 5:
-                        break
-                        
-                    if (company['ticker'] != ticker and  # Skip original company
-                        company.get('market') == 'stocks' and  # Is a stock
-                        company.get('type') == 'CS'):  # Common stock only
-                        
-                        try:
-                            time.sleep(0.12)  # Rate limiting
-                            details = get_ticker_details(company['ticker'])
-                            if (details and 
-                                details.get('market_cap') and 
-                                details['ticker'] not in [p['ticker'] for p in peers] and
-                                details.get('sector') == base_company['sector']):  # Same sector
-                                peers.append(details)
-                        except Exception as e:
-                            print(f"Error getting details for {company['ticker']}: {str(e)}")
-                            continue
-                            
-    except Exception as e:
-        print(f"Error processing peers: {str(e)}")
-    
-    # Sort peers by market cap
-    peers.sort(key=lambda x: float(x.get('market_cap', 0)), reverse=True)
-    
-    return {
-        'base_company': base_company,
-        'industry_classification': {
-            'type': 'SIC Code',
-            'value': base_company['sic_code']
-        },
-        'peers': peers[:5]  # Return top 5 peers by market cap
-    }
 
 def filter_by_market_cap(companies: list, target_cap: float, range_percent: float = 0.5) -> list:
     """
@@ -651,43 +572,118 @@ def filter_by_market_cap(companies: list, target_cap: float, range_percent: floa
         if company.get('market_cap') and min_cap <= company['market_cap'] <= max_cap
     ]
 
-def get_comparable_peers(ticker: str, use_sic_code: bool = True, market_cap_range: float = 0.5) -> dict:
+def filter_by_sic_code(tickers: list, base_ticker: str, tolerance: float = 0.0) -> list:
     """
-    Get comprehensive peer analysis based on industry and market cap.
+    Filter companies by matching SIC code with optional tolerance for related industries.
     
     Args:
-        ticker (str): The stock ticker symbol
-        use_sic_code (bool): Whether to use exact SIC code matching
-        market_cap_range (float): Market cap range for filtering (0.5 = ±50%)
+        tickers (list): List of ticker symbols to filter
+        base_ticker (str): Base company ticker to compare against
+        tolerance (float): How closely SIC codes must match (0.0 = exact match, 0.1 = allow similar industry)
     
     Returns:
-        dict: Peer analysis containing:
-            - base_company: Original company details
-            - industry_peers: All peers in same industry
-            - size_peers: Peers within market cap range
-            - comparable_peers: Peers matching both criteria
+        list: Filtered list of companies with matching industry classification
     """
-    # Get industry peers first
-    industry_analysis = get_industry_peers(ticker, use_sic_code)
-    base_company = industry_analysis['base_company']
-    industry_peers = industry_analysis['peers']
+    # Get base company details
+    base_company = get_ticker_details(base_ticker)
+    if not base_company.get('sic_code'):
+        return []
     
-    # Get size-based peers
-    size_peers = filter_by_market_cap(
-        industry_analysis['peers'],
-        base_company['market_cap'],
-        market_cap_range
+    base_sic = base_company['sic_code']
+    filtered_companies = []
+    
+    for ticker in tickers:
+        try:
+            company = get_ticker_details(ticker)
+            if company and company.get('sic_code'):
+                # Exact match
+                if tolerance == 0.0 and company['sic_code'] == base_sic:
+                    filtered_companies.append(company)
+                # Similar industry (first 2-3 digits match)
+                elif tolerance > 0.0 and company['sic_code'][:3] == base_sic[:3]:
+                    filtered_companies.append(company)
+            time.sleep(0.12)  # Rate limiting
+        except Exception as e:
+            print(f"Error processing {ticker}: {str(e)}")
+            continue
+    
+    return filtered_companies
+
+def filter_by_market_cap_range(companies: list, base_ticker: str, 
+                             lower_pct: float = 0.2, upper_pct: float = 5.0) -> list:
+    """
+    Filter companies by market cap within a reasonable range of the base company.
+    
+    Args:
+        companies (list): List of company dictionaries with market_cap field
+        base_ticker (str): Ticker symbol of the base company
+        lower_pct (float): Lower bound as percentage of base market cap (0.2 = 20%)
+        upper_pct (float): Upper bound as percentage of base market cap (5.0 = 500%)
+    
+    Returns:
+        list: Filtered list of companies within market cap range
+    """
+    base_company = get_ticker_details(base_ticker)
+    if not base_company.get('market_cap'):
+        return []
+    
+    base_cap = float(base_company['market_cap'])
+    min_cap = base_cap * lower_pct
+    max_cap = base_cap * upper_pct
+    
+    return [
+        company for company in companies
+        if company.get('market_cap') and min_cap <= float(company['market_cap']) <= max_cap
+    ]
+
+def get_comparable_peers(ticker: str, sic_tolerance: float = 0.0, 
+                        min_market_cap_pct: float = 0.2, 
+                        max_market_cap_pct: float = 5.0) -> dict:
+    """
+    Get comparable peer companies using multiple filters.
+    
+    Args:
+        ticker (str): Base company ticker symbol
+        sic_tolerance (float): Tolerance for SIC code matching
+        min_market_cap_pct (float): Minimum market cap as % of base company
+        max_market_cap_pct (float): Maximum market cap as % of base company
+    
+    Returns:
+        dict: Filtered peer companies with analysis
+    """
+    # Get related companies from Polygon API
+    related = get_related_tickers(ticker)
+    if not related or 'results' not in related:
+        return {'error': 'No related companies found'}
+    
+    # Extract tickers from results
+    related_tickers = [company['ticker'] for company in related['results']]
+    
+    # Apply filters
+    sic_filtered = filter_by_sic_code(related_tickers, ticker, sic_tolerance)
+    final_peers = filter_by_market_cap_range(
+        sic_filtered, 
+        ticker, 
+        min_market_cap_pct, 
+        max_market_cap_pct
     )
+    
+    # Sort by market cap
+    final_peers.sort(key=lambda x: float(x.get('market_cap', 0)), reverse=True)
+    
+    # Get base company details
+    base_company = get_ticker_details(ticker)
     
     return {
         'base_company': base_company,
-        'industry_classification': industry_analysis['industry_classification'],
-        'total_industry_peers': len(industry_peers),
-        'industry_peers': industry_peers,
-        'size_filtered_peers': size_peers,
-        'market_cap_range': {
-            'min': base_company['market_cap'] * (1 - market_cap_range),
-            'max': base_company['market_cap'] * (1 + market_cap_range)
+        'peer_count': len(final_peers),
+        'peers': final_peers,
+        'filters_applied': {
+            'sic_tolerance': sic_tolerance,
+            'market_cap_range': {
+                'min_pct': min_market_cap_pct,
+                'max_pct': max_market_cap_pct
+            }
         }
     }
 

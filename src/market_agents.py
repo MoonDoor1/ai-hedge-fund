@@ -393,35 +393,21 @@ class PortfolioRecommendationAgent:
         """
         Generate final portfolio recommendation by combining all analyses.
         
-        Customization Points:
-        1. Analysis Weights:
-           - Adjust importance of each analysis type
-           - Dynamic weights based on market conditions
-           - Sector-specific weightings
-        
-        2. Risk Management:
-           - Position sizing rules
-           - Sector exposure limits
-           - Volatility adjustments
-        
-        3. Confidence Scoring:
-           - Signal strength assessment
-           - Consensus measurement
-           - Conviction levels
+        The confidence score measures how strongly the different signals agree,
+        regardless of buy/sell direction. High confidence means strong agreement
+        across different analysis types.
         """
         # CUSTOMIZATION: Adjust weights based on market conditions
         weights = {
-            'revenue': 0.30,  # Fundamental factor
-            'sector': 0.25,   # Peer comparison
-            'technical': 0.25, # Price action
-            'sentiment': 0.20  # Market mood
+            'revenue': 0.30,    # Fundamental factor
+            'sector': 0.25,     # Peer comparison
+            'technical': 0.25,  # Price action
+            'sentiment': 0.20   # Market mood
         }
         
         score = 0
-        confidence = 0
         reasons = []
         
-        # Score each analysis
         def extract_signal(recommendation: str) -> float:
             if 'STRONG BUY' in recommendation: return 2.0
             if 'BUY' in recommendation: return 1.0
@@ -429,38 +415,58 @@ class PortfolioRecommendationAgent:
             if 'STRONG SELL' in recommendation: return -2.0
             return 0  # HOLD
         
-        # Revenue Analysis
-        revenue_signal = extract_signal(revenue_analysis['recommendation'])
-        score += revenue_signal * weights['revenue']
-        if abs(revenue_signal) >= 1:
-            reasons.append(revenue_analysis['recommendation'])
+        # Get all signals
+        signals = {
+            'revenue': extract_signal(revenue_analysis['recommendation']),
+            'sector': extract_signal(sector_analysis['recommendation']),
+            'technical': extract_signal(technical_analysis['recommendation']),
+            'sentiment': extract_signal(sentiment_analysis['recommendation'])
+        }
         
-        # Sector Analysis
-        sector_signal = extract_signal(sector_analysis['recommendation'])
-        score += sector_signal * weights['sector']
-        if abs(sector_signal) >= 1:
-            reasons.append(sector_analysis['recommendation'])
+        # Calculate weighted score for buy/sell decision
+        for source, signal in signals.items():
+            score += signal * weights[source]
+            if abs(signal) >= 1:
+                reasons.append(f"{source.title()}: {revenue_analysis['recommendation']}")
         
-        # Technical Analysis
-        technical_signal = extract_signal(technical_analysis['recommendation'])
-        score += technical_signal * weights['technical']
-        if abs(technical_signal) >= 1:
-            reasons.append(technical_analysis['recommendation'])
+        # Calculate enhanced confidence score
+        def calculate_enhanced_confidence(signals: Dict[str, float]) -> tuple:
+            """
+            Calculate confidence based on signal agreement and strength,
+            independent of buy/sell direction.
+            
+            Returns:
+                tuple: (confidence, agreement_ratio, strength_score, clustering_score)
+            """
+            signal_values = list(signals.values())
+            
+            # Direction agreement (are signals pointing the same way?)
+            signal_directions = [1 if s > 0 else -1 if s < 0 else 0 for s in signal_values]
+            agreement_ratio = abs(sum(signal_directions)) / len(signal_directions)
+            
+            # Signal strength (how strong are the signals?)
+            strength_score = sum(abs(s) for s in signal_values) / (len(signal_values) * 2)
+            
+            # Signal clustering (how close are signals to each other?)
+            mean_signal = sum(abs(s) for s in signal_values) / len(signal_values)
+            variance = sum((abs(s) - mean_signal) ** 2 for s in signal_values) / len(signal_values)
+            clustering_score = 1 - min(variance, 1)  # Lower variance = higher clustering
+            
+            # Combine scores with weights
+            confidence = (
+                agreement_ratio * 0.4 +    # Direction agreement most important
+                strength_score * 0.35 +    # Signal strength next
+                clustering_score * 0.25    # Clustering least important
+            )
+            
+            return (
+                round(confidence, 2),
+                round(agreement_ratio, 2),
+                round(strength_score, 2),
+                round(clustering_score, 2)
+            )
         
-        # Sentiment Analysis
-        sentiment_signal = extract_signal(sentiment_analysis['recommendation'])
-        score += sentiment_signal * weights['sentiment']
-        if abs(sentiment_signal) >= 1:
-            reasons.append(sentiment_analysis['recommendation'])
-        
-        # Calculate confidence based on consensus
-        signals = [revenue_signal, sector_signal, technical_signal, sentiment_signal]
-        confidence = abs(sum(signals)) / (len(signals) * 2)  # Normalize to 0-1
-        
-        # CUSTOMIZATION: Risk Management Adjustments
-        # Add position sizing based on confidence
-        # Add sector exposure limits
-        # Add volatility adjustments
+        confidence, agreement_ratio, strength_score, clustering_score = calculate_enhanced_confidence(signals)
         
         # Generate final recommendation
         return {
@@ -469,10 +475,15 @@ class PortfolioRecommendationAgent:
                      'SELL' if score <= -0.5 else
                      'STRONG SELL' if score <= -1.5 else
                      'HOLD',
-            'confidence': round(confidence, 2),
+            'confidence': confidence,
             'score': round(score, 2),
             'reasons': reasons,
             'risk_level': 'HIGH' if confidence < 0.3 else
                          'LOW' if confidence > 0.7 else
-                         'MEDIUM'
+                         'MEDIUM',
+            'signal_breakdown': {
+                'agreement_strength': agreement_ratio,
+                'signal_strength': strength_score,
+                'signal_clustering': clustering_score
+            }
         } 

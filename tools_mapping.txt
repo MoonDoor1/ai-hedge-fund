@@ -1,0 +1,74 @@
+EXISTING:
+- get_prices(): Base price data
+- prices_to_df(): Data transformation
+- get_financial_metrics(): Basic financial data
+- get_related_tickers(): Find related companies
+- search_tickers(): Search functionality
+- get_sic_peers(): Industry classification peers
+- get_market_cap_peers(): Size-based peers
+
+PLANNED:
+- validate_financial_data(): Data validation
+- check_data_freshness(): Data quality
+- handle_missing_data(): Data cleaning
+
+
+EXISTING:
+- get_market_cap_data(): Market capitalization
+- get_revenue_data(): Revenue information
+- calculate_revenue_multiple(): Basic multiple calculation
+
+PLANNED:
+- calculate_sector_average_multiple(): Sector comparisons
+- get_historical_revenue_growth(): Growth analysis
+- analyze_revenue_quality(): Revenue sustainability
+
+
+EXISTING:
+- calculate_moving_averages(): MA calculations
+- calculate_bollinger_bands(): Volatility bands
+- calculate_macd(): Momentum
+- calculate_rsi(): Relative strength
+- calculate_obv(): Volume analysis
+
+PLANNED:
+(Seems well-covered, might need enhancements rather than new tools)
+
+
+EXISTING:
+- get_sector_classification(): Basic classification
+- analyze_sector_metrics(): Basic metrics
+
+PLANNED:
+- get_peer_group_metrics(): Enhanced peer analysis
+- calculate_sector_benchmarks(): Industry standards
+- analyze_competitive_position(): Market position
+
+
+EXISTING:
+- get_analyst_ratings(): Basic ratings
+- get_news_events(): News collection
+- analyze_volatility_events(): Volatility analysis
+
+PLANNED:
+- analyze_news_source_credibility(): Source reliability
+- calculate_analyst_historical_accuracy(): Analyst tracking
+- analyze_institutional_holdings_changes(): Smart money tracking
+
+
+EXISTING:
+- calculate_event_impact(): Event analysis
+
+PLANNED:
+- calculate_position_size_recommendation(): Position sizing
+- analyze_portfolio_correlation(): Portfolio management
+- calculate_sector_exposure_limits(): Risk limits
+
+
+EXISTING:
+- analyze_price_targets(): Basic target analysis
+
+PLANNED:
+- Enhanced target analysis with analyst credibility
+- Target revision tracking
+- Historical accuracy metrics

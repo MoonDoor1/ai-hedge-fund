@@ -1,30 +1,24 @@
 from datetime import datetime, timedelta
+from typing import Dict, List
 import pandas as pd
 import numpy as np
 import requests
 import time
 import os
 
-def get_sic_peers(ticker: str, tolerance: float = 0.0) -> dict:
-    """
-    Get peers based on SIC code matching from related companies.
-    Returns companies in same industry classification.
-    """
-    # Get related companies first
-    related = get_related_tickers(ticker)
-    if not related or 'results' not in related:
-        return {'error': 'No related companies found'}
-    
-    # Filter by SIC code
-    related_tickers = [company['ticker'] for company in related['results']]
-    sic_filtered = filter_by_sic_code(related_tickers, ticker, tolerance)
-    
-    return {
-        'base_company': get_ticker_details(ticker),
-        'peer_count': len(sic_filtered),
-        'peers': sic_filtered,
-        'classification': 'SIC Code'
-    }
+# API Keys setup
+POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
+FMP_API_KEY = os.environ.get("FMP_API_KEY")
+
+# Validate API keys
+if not POLYGON_API_KEY:
+    raise ValueError("POLYGON_API_KEY not found in environment variables")
+if not FMP_API_KEY:
+    raise ValueError("FMP_API_KEY not found in environment variables")
+
+# Optional: Add rate limiting setup
+RATE_LIMIT_PAUSE = 0.12  # 120ms pause between API calls for rate limiting
+
 
 def get_market_cap_peers(ticker: str, min_pct: float = 0.2, max_pct: float = 5.0) -> dict:
     """
@@ -141,6 +135,7 @@ def calculate_confidence_level(signals):
     return confidence
 
 def calculate_macd(prices_df):
+    """Calculate MACD (Moving Average Convergence Divergence)"""
     ema_12 = prices_df['close'].ewm(span=12, adjust=False).mean()
     ema_26 = prices_df['close'].ewm(span=26, adjust=False).mean()
     macd_line = ema_12 - ema_26
@@ -148,6 +143,7 @@ def calculate_macd(prices_df):
     return macd_line, signal_line
 
 def calculate_rsi(prices_df, period=14):
+    """Calculate RSI (Relative Strength Index)"""
     delta = prices_df['close'].diff()
     gain = (delta.where(delta > 0, 0)).fillna(0)
     loss = (-delta.where(delta < 0, 0)).fillna(0)
@@ -158,14 +154,15 @@ def calculate_rsi(prices_df, period=14):
     return rsi
 
 def calculate_bollinger_bands(prices_df, window=20):
+    """Calculate Bollinger Bands"""
     sma = prices_df['close'].rolling(window).mean()
     std_dev = prices_df['close'].rolling(window).std()
     upper_band = sma + (std_dev * 2)
     lower_band = sma - (std_dev * 2)
     return upper_band, lower_band
 
-
 def calculate_obv(prices_df):
+    """Calculate On-Balance Volume (OBV)"""
     obv = [0]
     for i in range(1, len(prices_df)):
         if prices_df['close'].iloc[i] > prices_df['close'].iloc[i - 1]:
@@ -269,41 +266,6 @@ def calculate_moving_averages(ticker: str, end_date: str = None) -> dict:
         'support_resistance': support_resistance,
         'last_updated': end_date
     }
-
-
-def get_market_cap_data(ticker: str, date: str = None) -> float:
-    """
-    Retrieves the market capitalization for a given stock ticker.
-    
-    Args:
-        ticker (str): The stock ticker symbol (e.g., 'AAPL')
-        date (str, optional): The date to get market cap for in 'YYYY-MM-DD' format.
-                            If None, gets the most recent market cap.
-    
-    Returns:
-        float: Market capitalization in USD
-    """
-    # Set up dates
-    end_date = date or datetime.now().strftime('%Y-%m-%d')
-    start_date = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=5)).strftime('%Y-%m-%d')
-    
-    # Get price data
-    df = get_price_data(ticker, start_date, end_date)
-    
-    # Get the closing price for the specified date
-    if date:
-        price = df.loc[df.index == date, 'close'].iloc[-1]
-    else:
-        price = df['close'].iloc[-1]
-    
-    # Get shares outstanding from financial metrics
-    metrics = get_financial_metrics(ticker, 'quarterly', 'ttm', 1)
-    shares_outstanding = metrics.get('shares_outstanding', 0)
-    
-    # Calculate market cap
-    market_cap = price * shares_outstanding
-    
-    return market_cap
 
 
 def analyze_volatility_events(ticker: str, start_date: str = None, end_date: str = None) -> dict:
@@ -502,34 +464,90 @@ def get_revenue_data(ticker: str, period: str = 'annual') -> dict:
         'historical_data': historical,
         'currency': current.get('financials', {}).get('income_statement', {}).get('revenues', {}).get('unit', 'USD'),
         'fiscal_period': current.get('fiscal_period'),
-        'fiscal_year': current.get('fiscal_year')
     }
 
-def get_analyst_ratings(ticker: str) -> dict:
+def get_analyst_ratings(ticker: str) -> Dict:
     """
-    Retrieves current analyst ratings and price targets for a given stock ticker.
-    
-    Args:
-        ticker (str): The stock ticker symbol (e.g., 'AAPL')
+    Get current analyst ratings and price targets using FMP API.
     
     Returns:
-        dict: Analyst ratings data containing:
-            - 'consensus': Overall rating (e.g., 'Buy', 'Hold', 'Sell')
-            - 'price_target': Dictionary containing:
-                - 'low': Lowest price target
-                - 'high': Highest price target
-                - 'mean': Mean price target
-                - 'median': Median price target
-            - 'ratings_breakdown': Dictionary of rating counts:
-                - 'buy': Number of buy ratings
-                - 'hold': Number of hold ratings
-                - 'sell': Number of sell ratings
-            - 'total_analysts': Total number of analysts covering the stock
-    
-    Raises:
-        ValueError: If ticker is invalid or data cannot be retrieved
+        Dict containing:
+        - consensus_rating
+        - price_targets (high, low, mean)
+        - rating_breakdown
+        - analyst_count
+        - recent_changes
     """
-    pass
+    # Get analyst recommendations
+    recommendations = make_fmp_request(f"/v3/analyst-stock-recommendations/{ticker}")
+    if not recommendations or not isinstance(recommendations, list):
+        return {"error": "Failed to get analyst recommendations"}
+        
+    # Get price targets - using a different endpoint that might work better
+    price_targets = make_fmp_request(f"/v3/analyst-price-target/{ticker}")  # Changed endpoint
+    if not price_targets or isinstance(price_targets, dict) and 'error' in price_targets:
+        return {"error": "Failed to get price targets"}
+        
+    # Get consensus data - using a different endpoint
+    consensus = make_fmp_request(f"/v3/analyst-estimates/{ticker}")  # Changed endpoint
+    if not consensus or isinstance(consensus, dict) and 'error' in consensus:
+        return {"error": "Failed to get consensus data"}
+    
+    try:
+        # Calculate rating breakdown from most recent month
+        latest = recommendations[0]
+        rating_breakdown = {
+            'buy': latest.get('analystRatingsbuy', 0) + latest.get('analystRatingsStrongBuy', 0),
+            'hold': latest.get('analystRatingsHold', 0),
+            'sell': latest.get('analystRatingsSell', 0) + latest.get('analystRatingsStrongSell', 0)
+        }
+        total_ratings = sum(rating_breakdown.values())
+        
+        # Calculate consensus based on ratings
+        buy_ratio = rating_breakdown['buy'] / total_ratings if total_ratings > 0 else 0
+        if buy_ratio >= 0.7:
+            consensus_rating = "Strong Buy"
+        elif buy_ratio >= 0.5:
+            consensus_rating = "Buy"
+        elif buy_ratio >= 0.3:
+            consensus_rating = "Hold"
+        else:
+            consensus_rating = "Sell"
+        
+        # Get recent rating changes
+        upgrades_downgrades = make_fmp_request(f"/v3/upgrades-downgrades/{ticker}")
+        recent_changes = []
+        if upgrades_downgrades and isinstance(upgrades_downgrades, list):
+            recent_changes = [{
+                'date': change.get('date'),
+                'company': change.get('company'),
+                'change': change.get('action'),
+                'to_grade': change.get('toGrade'),
+                'from_grade': change.get('fromGrade')
+            } for change in upgrades_downgrades[:5]]
+        
+        return {
+            'consensus_rating': consensus_rating,
+            'price_targets': {
+                'high': max([r.get('targetPrice', 0) for r in price_targets]) if isinstance(price_targets, list) else None,
+                'low': min([r.get('targetPrice', 0) for r in price_targets]) if isinstance(price_targets, list) else None,
+                'mean': sum([r.get('targetPrice', 0) for r in price_targets]) / len(price_targets) if isinstance(price_targets, list) and price_targets else None,
+                'median': sorted([r.get('targetPrice', 0) for r in price_targets])[len(price_targets)//2] if isinstance(price_targets, list) and price_targets else None
+            },
+            'rating_breakdown': rating_breakdown,
+            'analyst_count': total_ratings,
+            'recent_changes': recent_changes
+        }
+        
+    except Exception as e:
+        return {
+            "error": f"Error processing analyst data: {str(e)}",
+            "details": {
+                "recommendations_available": bool(recommendations),
+                "price_targets_available": bool(price_targets),
+                "consensus_available": bool(consensus)
+            }
+        }
 
 def calculate_revenue_multiple(ticker: str) -> dict:
     """
@@ -688,215 +706,211 @@ def get_comparable_peers(ticker: str, sic_tolerance: float = 0.0,
     }
 
 def analyze_sector_metrics(ticker: str) -> dict:
-    """
-    Analyzes sector-specific metrics and comparisons using peer analysis.
-    
-    Args:
-        ticker (str): The stock ticker symbol (e.g., 'AAPL')
-    
-    Returns:
-        dict: Sector analysis containing sector metrics and peer comparisons
-    """
+    """Analyzes sector-specific metrics and comparisons using FMP API."""
     try:
-        # Get base company details and metrics
-        company_details = get_ticker_details(ticker)
-        if not company_details.get('market_cap'):
-            raise ValueError(f"No market cap data available for {ticker}")
+        # Get company profile
+        print(f"\nDEBUG - Getting profile for {ticker}")
+        profile = make_fmp_request(f"/v3/profile/{ticker}")
+        if not profile or not isinstance(profile, list):
+            return {"error": "Failed to get company profile"}
+        
+        company_details = profile[0]
+        sector = company_details.get('sector')
+        industry = company_details.get('industry')
+        print(f"DEBUG - Sector: {sector}, Industry: {industry}")
+        
+        # Get company metrics for P/S ratio
+        print("\nDEBUG - Getting company metrics")
+        company_metrics = make_fmp_request(f"/v3/key-metrics-ttm/{ticker}")
+        if not company_metrics or not isinstance(company_metrics, list):
+            return {"error": "Failed to get company metrics"}
             
-        company_metrics = analyze_financial_metrics(ticker)
+        # Get quote data for current market data
+        print("\nDEBUG - Getting quote data")
+        quote = make_fmp_request(f"/v3/quote/{ticker}")
+        if not quote or not isinstance(quote, list):
+            return {"error": "Failed to get quote data"}
+            
+        # Get company data from quote
+        company_market_cap = quote[0].get('marketCap', 0)
+        company_shares = quote[0].get('sharesOutstanding', 0)
+        company_multiple = company_metrics[0].get('priceToSalesRatioTTM')
         
-        # Get peer analysis
-        peer_analysis = get_comparable_peers(ticker)
-        peers = peer_analysis.get('size_filtered_peers', [])
+        print(f"\nDEBUG - Company metrics:")
+        print(f"Market Cap: ${company_market_cap:,.0f}")
+        print(f"Shares Outstanding: {company_shares:,.0f}")
+        print(f"Price to Sales Ratio: {company_multiple:.2f}x" if company_multiple else "P/S Ratio: None")
+        print(f"P/E Ratio: {quote[0].get('pe', 'N/A')}")
         
-        if not peers:
-            return {
-                'sector_name': company_details.get('sector', 'Unknown'),
-                'industry': company_details.get('industry', 'Unknown'),
-                'sector_metrics': {
-                    'revenue_multiple': {
-                        'company': None,
-                        'average': None,
-                        'median': None,
-                        'percentile': None
-                    }
-                },
-                'peer_rankings': {
-                    'net_margin_rank': None,
-                    'roe_rank': None,
-                    'total_peers': 0
-                },
-                'total_peers_analyzed': 0,
-                'analysis_date': datetime.now().strftime('%Y-%m-%d')
-            }
+        # Get peer companies
+        peers_data = make_fmp_request(f"/v4/stock_peers?symbol={ticker}")
+        if not peers_data or not isinstance(peers_data, list):
+            return {"error": "Failed to get peer companies"}
+            
+        peer_list = peers_data[0].get('peersList', []) if peers_data else []
+        print(f"\nDEBUG - Found {len(peer_list)} peers: {peer_list}")
         
-        # Calculate revenue multiples for company and peers
-        company_revenue = get_revenue_data(ticker)
-        company_multiple = (company_details['market_cap'] / company_revenue['revenue'] 
-                          if company_revenue.get('revenue') and company_revenue['revenue'] != 0 
-                          else None)
+        if not peer_list:
+            return {"error": "No peers found for company"}
         
+        # Get company metrics
+        print("\nDEBUG - Getting company metrics")
+        company_metrics = make_fmp_request(f"/v3/key-metrics-ttm/{ticker}")
+        print(f"DEBUG - Company metrics response: {company_metrics[:1]}")  # Show first item
+        
+        if not company_metrics or not isinstance(company_metrics, list):
+            return {"error": "Failed to get company metrics"}
+        
+        # Get quote data
+        print("\nDEBUG - Getting quote data")
+        quote = make_fmp_request(f"/v3/quote/{ticker}")
+        print(f"DEBUG - Quote response: {quote}")
+        
+        if not quote or not isinstance(quote, list):
+            return {"error": "Failed to get quote data"}
+            
+        # Calculate company multiple
+        company_market_cap = quote[0].get('marketCap', 0)
+        shares_outstanding = company_metrics[0].get('sharesOutstanding', 0)
+        revenue_per_share = company_metrics[0].get('revenuePerShare', 0)
+        company_revenue = revenue_per_share * shares_outstanding
+        
+        print(f"\nDEBUG - Company calculations:")
+        print(f"Market Cap: ${company_market_cap:,.0f}")
+        print(f"Shares Outstanding: {shares_outstanding:,.0f}")
+        print(f"Revenue Per Share: ${revenue_per_share:.2f}")
+        print(f"Calculated Revenue: ${company_revenue:,.0f}")
+        
+        company_multiple = company_market_cap / company_revenue if company_revenue else None
+        print(f"Company Multiple: {company_multiple:.2f}x" if company_multiple else "Company Multiple: None")
+        
+        # Get peer metrics
         peer_multiples = []
         peer_metrics = []
         
-        for peer in peers:
+        print("\nDEBUG - Processing peers:")
+        for peer_symbol in peer_list:
             try:
-                if not peer.get('market_cap'):
-                    continue
-                    
-                peer_revenue = get_revenue_data(peer['ticker'])
-                if peer_revenue.get('revenue') and peer_revenue['revenue'] != 0:
-                    peer_multiple = peer['market_cap'] / peer_revenue['revenue']
-                    peer_multiples.append(peer_multiple)
+                print(f"\nProcessing peer: {peer_symbol}")
+                peer_metrics_data = make_fmp_request(f"/v3/key-metrics-ttm/{peer_symbol}")
+                peer_quote = make_fmp_request(f"/v3/quote/{peer_symbol}")
                 
-                # Get peer financial metrics
-                peer_metric = analyze_financial_metrics(peer['ticker'])
-                if peer_metric:
-                    peer_metrics.append(peer_metric)
+                if not peer_metrics_data or not peer_quote:
+                    print(f"Missing data for {peer_symbol}")
+                    continue
+                
+                peer_multiple = peer_metrics_data[0].get('priceToSalesRatioTTM')
+                peer_market_cap = peer_quote[0].get('marketCap', 0)
+                
+                if peer_multiple:
+                    print(f"Market Cap: ${peer_market_cap:,.0f}")
+                    print(f"Price to Sales Ratio: {peer_multiple:.2f}x")
+                    peer_multiples.append(peer_multiple)
+                    peer_metrics.append({
+                        'symbol': peer_symbol,
+                        'multiple': peer_multiple,
+                        'market_cap': peer_market_cap,
+                        'net_margin': peer_metrics_data[0].get('netIncomePerShareTTM'),
+                        'roe': peer_metrics_data[0].get('roeTTM')
+                    })
+                    
             except Exception as e:
-                print(f"Error processing peer {peer.get('ticker', 'Unknown')}: {str(e)}")
+                print(f"Error processing peer {peer_symbol}: {str(e)}")
                 continue
+                
+            time.sleep(0.12)
+        
+        print(f"\nDEBUG - Collected {len(peer_multiples)} valid peer multiples")
         
         # Calculate sector averages
-        sector_metrics = {
-            'revenue_multiple': {
-                'average': sum(peer_multiples) / len(peer_multiples) if peer_multiples else None,
-                'median': sorted(peer_multiples)[len(peer_multiples)//2] if peer_multiples else None,
-                'company': company_multiple,
-                'percentile': (sum(1 for x in peer_multiples if x < company_multiple) / len(peer_multiples) 
-                             if peer_multiples and company_multiple is not None else None)
-            }
-        }
-        
-        # Only calculate these metrics if we have valid peer data
-        if peer_metrics:
-            valid_margins = [p['profitability']['net_margin'] for p in peer_metrics 
-                           if p.get('profitability', {}).get('net_margin') is not None]
-            valid_roes = [p['profitability']['roe'] for p in peer_metrics 
-                         if p.get('profitability', {}).get('roe') is not None]
-            valid_debt_equity = [p['solvency']['debt_to_equity'] for p in peer_metrics 
-                               if p.get('solvency', {}).get('debt_to_equity') is not None]
-            
-            sector_metrics.update({
-                'profitability': {
-                    'average_margin': sum(valid_margins) / len(valid_margins) if valid_margins else None,
-                    'average_roe': sum(valid_roes) / len(valid_roes) if valid_roes else None
-                },
-                'solvency': {
-                    'average_debt_to_equity': sum(valid_debt_equity) / len(valid_debt_equity) if valid_debt_equity else None
-                }
-            })
-        
-        # Calculate company's rankings
-        company_margin = company_metrics.get('profitability', {}).get('net_margin')
-        company_roe = company_metrics.get('profitability', {}).get('roe')
-        
-        rankings = {
-            'net_margin_rank': (sum(1 for p in peer_metrics 
-                                  if p.get('profitability', {}).get('net_margin') and 
-                                  p['profitability']['net_margin'] > company_margin) + 1
-                              if company_margin is not None else None),
-            'roe_rank': (sum(1 for p in peer_metrics 
-                            if p.get('profitability', {}).get('roe') and 
-                            p['profitability']['roe'] > company_roe) + 1
-                        if company_roe is not None else None),
-            'total_peers': len(peer_metrics)
-        }
+        if peer_multiples:
+            avg_multiple = sum(peer_multiples) / len(peer_multiples)
+            median_multiple = sorted(peer_multiples)[len(peer_multiples)//2]
+            print(f"Average Multiple: {avg_multiple:.2f}x")
+            print(f"Median Multiple: {median_multiple:.2f}x")
+        else:
+            avg_multiple = None
+            median_multiple = None
+            print("No valid peer multiples calculated")
         
         return {
-            'sector_name': company_details.get('sector', 'Unknown'),
-            'industry': company_details.get('industry', 'Unknown'),
-            'sector_metrics': sector_metrics,
-            'peer_rankings': rankings,
-            'total_peers_analyzed': len(peers),
+            'sector_name': sector,
+            'industry': industry,
+            'sector_metrics': {
+                'avg_revenue_multiple': avg_multiple,
+                'median_revenue_multiple': median_multiple,
+                'company_multiple': company_multiple,
+                'percentile': ((sum(1 for x in peer_multiples if x < company_multiple) / len(peer_multiples))
+                             if peer_multiples and company_multiple else None)
+            },
+            'peer_metrics': peer_metrics,
+            'total_peers_analyzed': len(peer_metrics),
             'analysis_date': datetime.now().strftime('%Y-%m-%d')
         }
         
     except Exception as e:
-        print(f"Error in sector analysis: {str(e)}")
+        print(f"DEBUG - Sector analysis error: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
         return {
-            'sector_name': company_details.get('sector', 'Unknown') if 'company_details' in locals() else 'Unknown',
-            'industry': company_details.get('industry', 'Unknown') if 'company_details' in locals() else 'Unknown',
-            'error': str(e),
-            'analysis_date': datetime.now().strftime('%Y-%m-%d')
+            "error": f"Sector analysis failed: {str(e)}",
+            "sector_name": sector if 'sector' in locals() else 'Unknown',
+            "industry": industry if 'industry' in locals() else 'Unknown'
         }
 
-def analyze_price_targets(ticker: str) -> dict:
+def analyze_price_targets(ticker: str) -> Dict:
     """
-    Analyzes price targets in relation to moving averages and current price.
+    Get price targets for a given ticker.
     
     Args:
-        ticker (str): The stock ticker symbol (e.g., 'AAPL')
+        ticker (str): Stock ticker symbol
     
     Returns:
-        dict: Price target analysis containing:
-            - 'current_price': Current stock price
-            - 'target_consensus': Consensus price target
-            - 'ma_analysis': Moving average analysis
-            - 'upside_potential': Percentage to consensus target
-            - 'target_range': Dict of price target range
-            - 'probability_analysis': Dict of probability metrics
-    
-    Raises:
-        ValueError: If ticker is invalid or data cannot be retrieved
+        Dict containing price target data
     """
-    pass
+    # Use the correct v4 endpoint
+    price_targets = make_fmp_request(f"/v4/price-target-consensus?symbol={ticker}")
+    print(f"DEBUG - Price targets response type: {type(price_targets)}")
+    print(f"DEBUG - Price targets content: {price_targets}")
+    
+    # Validate the response
+    if not price_targets or not isinstance(price_targets, list) or len(price_targets) == 0:
+        print(f"DEBUG - API Key being used: {os.environ.get('FMP_API_KEY', 'Not found')[:5]}...")
+        print(f"DEBUG - Full URL: /v4/price-target-consensus?symbol={ticker}")
+        return {"error": "No price target data available"}
+    
+    # Return the raw price target data
+    return price_targets[0]
 
-def get_news_events(ticker: str, start_date: str = None, end_date: str = None) -> list:
-    """
-    Retrieves significant news events and their potential market impact.
+def get_news_events(ticker: str, start_date: str = None, end_date: str = None) -> List[Dict]:
+    """Get news events and basic market impact data"""
+    news = make_fmp_request(f"/v3/stock-news?tickers={ticker}&limit=50")
+    sentiment_data = make_fmp_request(f"/v4/stock-news-sentiments?symbol={ticker}")
     
-    Args:
-        ticker (str): The stock ticker symbol (e.g., 'AAPL')
-        start_date (str, optional): Start date in 'YYYY-MM-DD' format
-        end_date (str, optional): End date in 'YYYY-MM-DD' format
+    analyzed_events = []
+    for article in news:
+        publish_date = article.get('publishedDate', '').split(' ')[0]
+        
+        # Get simple price data around the event
+        price_data = make_fmp_request(f"/v3/historical-price-full/{ticker}?from={publish_date}&to={publish_date}")
+        if price_data and 'historical' in price_data:
+            price_change = price_data['historical'][0].get('changePercent')
+            volume = price_data['historical'][0].get('volume')
+        else:
+            price_change = None
+            volume = None
+            
+        analyzed_events.append({
+            'date': publish_date,
+            'headline': article.get('title'),
+            'source': article.get('site'),
+            'sentiment_score': sentiment_data.get('sentiment'),
+            'price_change': price_change,
+            'volume': volume,
+            'url': article.get('url')
+        })
     
-    Returns:
-        list: List of news events, each containing:
-            - 'date': Date of the news event
-            - 'headline': News headline
-            - 'source': News source
-            - 'summary': Brief summary of the news
-            - 'sentiment_score': Sentiment analysis score (-1 to 1)
-            - 'impact_metrics': Dict containing:
-                - 'volume_change': Trading volume change after news
-                - 'price_change': Price change after news
-                - 'volatility_change': Volatility change after news
-    
-    Raises:
-        ValueError: If ticker is invalid or data cannot be retrieved
-    """
-    pass
-
-def calculate_event_impact(ticker: str, event_date: str, window_days: int = 5) -> dict:
-    """
-    Calculates the market impact of a specific event over a given time window.
-    
-    Args:
-        ticker (str): The stock ticker symbol (e.g., 'AAPL')
-        event_date (str): Date of the event in 'YYYY-MM-DD' format
-        window_days (int, optional): Number of days to analyze after event (default: 5)
-    
-    Returns:
-        dict: Event impact analysis containing:
-            - 'price_impact': Dict of price changes
-                - 'immediate': Next day price change
-                - 'window': Price change over full window
-                - 'abnormal_return': Excess return over market
-            - 'volume_impact': Dict of volume changes
-                - 'avg_volume_change': Average volume change
-                - 'peak_volume': Highest volume in window
-            - 'volatility_impact': Dict of volatility measures
-                - 'pre_event': Volatility before event
-                - 'post_event': Volatility after event
-                - 'change': Percentage change in volatility
-            - 'market_reaction': Overall market reaction assessment
-    
-    Raises:
-        ValueError: If ticker is invalid or data cannot be retrieved
-        ValueError: If event_date is invalid or not in correct format
-    """
-    pass
+    return analyzed_events
 
 def get_sec_filings(ticker: str, filing_type: str = None, limit: int = 5) -> list:
     """
@@ -1200,4 +1214,1069 @@ def search_tickers(query: str, market: str = 'stocks', limit: int = 100) -> list
     except Exception as e:
         print(f"Error in search_tickers: {str(e)}")
         return []
+
+#####################################
+# Revenue Analysis Tools
+#####################################
+
+def calculate_sector_average_multiple(sector: str) -> float:
+    """
+    Calculate the average revenue multiple for a given sector.
+    
+    Considerations:
+    - Filter outliers
+    - Weight by company size
+    - Consider subsector differences
+    - Account for growth rates
+    """
+    pass
+
+def get_historical_revenue_growth(ticker: str) -> float:
+    """
+    Calculate historical revenue growth rates and patterns.
+    
+    Returns:
+    - YoY growth rate
+    - 3-year CAGR
+    - Growth stability metrics
+    - Seasonal patterns
+    """
+    pass
+
+def analyze_revenue_quality(ticker: str) -> Dict:
+    """
+    Analyze the quality and sustainability of revenue.
+    
+    Metrics:
+    - Recurring vs one-time revenue
+    - Customer concentration
+    - Contract length/stability
+    - Gross margin trends
+    """
+    pass
+
+#####################################
+# Enhanced Sector Analysis
+#####################################
+
+def get_peer_group_metrics(ticker: str) -> Dict:
+    """
+    Get detailed peer group comparison metrics.
+    
+    Includes:
+    - Size-based peers
+    - Growth-based peers
+    - Margin-based peers
+    - Business model similarity
+    """
+    pass
+
+def calculate_sector_benchmarks(sector: str) -> Dict:
+    """
+    Calculate key sector-specific benchmarks and metrics.
+    
+    Metrics:
+    - Typical multiples range
+    - Growth expectations
+    - Margin standards
+    - R&D investments
+    """
+    pass
+
+def analyze_competitive_position(ticker: str) -> Dict:
+    """
+    Analyze company's competitive position in sector.
+    
+    Factors:
+    - Market share trends
+    - Product differentiation
+    - Cost position
+    - Entry barriers
+    """
+    pass
+
+#####################################
+# Market Sentiment Enhancement
+#####################################
+
+def analyze_news_source_credibility(source: str) -> float:
+    """
+    Calculate credibility score for news sources.
+    
+    Factors:
+    - Historical accuracy
+    - Market impact
+    - Timeliness
+    - Industry focus
+    """
+    pass
+
+def calculate_analyst_historical_accuracy(analyst_id: str) -> float:
+    """
+    Track and score analyst prediction accuracy.
+    
+    Metrics:
+    - Price target accuracy
+    - Rating change timing
+    - Industry specialization
+    - Consistency
+    """
+    pass
+
+def analyze_institutional_holdings_changes(ticker: str) -> Dict:
+    """
+    Analyze changes in institutional ownership.
+    
+    Tracks:
+    - Ownership concentration
+    - Smart money movements
+    - Insider transactions
+    - Institution type distribution
+    """
+    pass
+
+#####################################
+# Risk Management Tools
+#####################################
+
+def calculate_position_size_recommendation(confidence: float, portfolio: Dict) -> float:
+    """
+    Calculate recommended position size based on confidence and risk.
+    
+    Factors:
+    - Signal confidence
+    - Portfolio correlation
+    - Volatility regime
+    - Current sector exposure
+    """
+    pass
+
+def analyze_portfolio_correlation(ticker: str, portfolio: Dict) -> float:
+    """
+    Analyze correlation between stock and existing portfolio.
+    
+    Includes:
+    - Return correlation
+    - Sector correlation
+    - Risk factor exposure
+    - Diversification impact
+    """
+    pass
+
+def calculate_sector_exposure_limits(sector: str) -> Dict:
+    """
+    Calculate maximum sector exposure limits.
+    
+    Considers:
+    - Sector volatility
+    - Market conditions
+    - Portfolio size
+    - Risk tolerance
+    """
+    pass
+
+#####################################
+# Data Quality Tools
+#####################################
+
+def validate_financial_data(data: Dict) -> bool:
+    """
+    Validate financial data quality and consistency.
+    
+    Checks:
+    - Data completeness
+    - Logical consistency
+    - Outlier detection
+    - Format validation
+    """
+    pass
+
+def check_data_freshness(data: Dict) -> bool:
+    """
+    Check if financial data is current enough for analysis.
+    
+    Validates:
+    - Last update timestamp
+    - Trading day relevance
+    - Corporate action impacts
+    - Source reliability
+    """
+    pass
+
+def handle_missing_data(data: Dict) -> Dict:
+    """
+    Handle missing or incomplete financial data.
+    
+    Strategies:
+    - Interpolation
+    - Industry averages
+    - Historical patterns
+    - Conservative estimates
+    """
+    pass
+
+def get_industry_classification(ticker: str) -> Dict:
+    """
+    Get the industry classification for a given ticker using FMP API.
+    
+    Args:
+        ticker (str): Stock ticker symbol
+        
+    Returns:
+        Dict containing:
+        - sic_code
+        - industry_title
+        - industry_group
+        - division
+    """
+    url = f"https://financialmodelingprep.com/api/v4/standard_industrial_classification?symbol={ticker}&apikey={FMP_API_KEY}"
+    response = requests.get(url)
+    if response.status_code != 200:
+        return None
+    return response.json()
+
+def get_industry_stocks(industry_title: str = None, sic_code: str = None) -> List[Dict]:
+    """
+    Get all stocks in a specific industry using FMP's stock screener.
+    
+    Args:
+        industry_title (str, optional): Industry title to filter by
+        sic_code (str, optional): SIC code to filter by
+        
+    Returns:
+        List[Dict]: List of stocks in the industry with their details
+        
+    Example:
+        >>> get_industry_stocks(industry_title="Computer Programming, Data Processing")
+        >>> get_industry_stocks(sic_code="7370")
+    """
+    base_url = "https://financialmodelingprep.com/api/v3/stock-screener"
+    
+    # Build query parameters
+    params = {
+        "apikey": FMP_API_KEY,
+        "limit": 1000,  # Adjust as needed
+    }
+    
+    if industry_title:
+        params["industry"] = industry_title
+    if sic_code:
+        params["sicCode"] = sic_code
+        
+    response = requests.get(base_url, params=params)
+    if response.status_code != 200:
+        return []
+        
+    stocks = response.json()
+    
+    # Enrich with additional metrics
+    for stock in stocks:
+        stock['industry_metrics'] = {
+            'market_cap': stock.get('marketCap'),
+            'price': stock.get('price'),
+            'beta': stock.get('beta'),
+            'volume': stock.get('volume'),
+            'last_annual_revenue': stock.get('revenue'),
+            'sector': stock.get('sector')
+        }
+    
+    return stocks
+
+def analyze_industry_metrics(stocks: List[Dict]) -> Dict:
+    """
+    Calculate industry-wide metrics from a list of stocks.
+    
+    Args:
+        stocks (List[Dict]): List of stocks with their metrics
+        
+    Returns:
+        Dict containing:
+        - median_market_cap
+        - median_revenue_multiple
+        - total_market_cap
+        - company_count
+        - largest_companies
+        - revenue_multiple_range
+    """
+    if not stocks:
+        return {}
+        
+    market_caps = [s['industry_metrics']['market_cap'] for s in stocks if s['industry_metrics']['market_cap']]
+    revenues = [s['industry_metrics']['last_annual_revenue'] for s in stocks if s['industry_metrics']['last_annual_revenue']]
+    
+    # Calculate revenue multiples
+    revenue_multiples = []
+    for stock in stocks:
+        mc = stock['industry_metrics']['market_cap']
+        rev = stock['industry_metrics']['last_annual_revenue']
+        if mc and rev and rev > 0:
+            revenue_multiples.append(mc/rev)
+    
+    return {
+        'median_market_cap': np.median(market_caps) if market_caps else None,
+        'median_revenue_multiple': np.median(revenue_multiples) if revenue_multiples else None,
+        'total_market_cap': sum(market_caps) if market_caps else None,
+        'company_count': len(stocks),
+        'largest_companies': sorted(stocks, key=lambda x: x['industry_metrics']['market_cap'], reverse=True)[:5],
+        'revenue_multiple_range': {
+            'min': min(revenue_multiples) if revenue_multiples else None,
+            'max': max(revenue_multiples) if revenue_multiples else None,
+            'p25': np.percentile(revenue_multiples, 25) if revenue_multiples else None,
+            'p75': np.percentile(revenue_multiples, 75) if revenue_multiples else None
+        }
+    }
+
+#####################################
+# FMP API Infrastructure
+#####################################
+
+def make_fmp_request(endpoint: str, params: Dict = None) -> Dict:
+    """
+    Make a request to the FMP API with proper error handling and rate limiting.
+    
+    Args:
+        endpoint (str): API endpoint (without base URL)
+        params (Dict): Query parameters
+        
+    Returns:
+        Dict: JSON response from API
+    """
+    base_url = "https://financialmodelingprep.com/api"
+    
+    # Ensure params dictionary exists
+    params = params or {}
+    
+    # Always include API key
+    params["apikey"] = FMP_API_KEY
+    
+    try:
+        # Implement rate limiting
+        time.sleep(RATE_LIMIT_PAUSE)
+        
+        # Make request
+        response = requests.get(f"{base_url}{endpoint}", params=params)
+        
+        # Handle HTTP errors
+        response.raise_for_status()
+        
+        # Parse response
+        data = response.json()
+        
+        # Basic validation of response
+        if not data:
+            return {"error": "Empty response received"}
+            
+        return data
+        
+    except requests.exceptions.RequestException as e:
+        return {"error": f"API request failed: {str(e)}"}
+    except ValueError as e:
+        return {"error": f"JSON parsing failed: {str(e)}"}
+    except Exception as e:
+        return {"error": f"Unexpected error: {str(e)}"}
+
+def validate_fmp_response(data: Dict) -> bool:
+    """
+    Validate FMP API response data.
+    
+    Args:
+        data (Dict): Response data from FMP API
+        
+    Returns:
+        bool: True if data is valid, False otherwise
+    """
+    if not data:
+        return False
+        
+    if isinstance(data, dict) and "error" in data:
+        return False
+        
+    if isinstance(data, list) and len(data) == 0:
+        return False
+        
+    return True
+
+#####################################
+# Enhanced Sector/Industry Analysis
+#####################################
+
+def get_sector_profile(ticker: str) -> Dict:
+    """
+    Get comprehensive sector and industry profile for a company.
+    
+    Args:
+        ticker (str): Company ticker symbol
+        
+    Returns:
+        Dict containing:
+        - sector_name
+        - industry_name
+        - sic_code
+        - peer_companies
+        - sector_metrics
+        - industry_position
+    """
+    # Get basic profile
+    profile_data = make_fmp_request(f"/v3/profile/{ticker}")
+    if not validate_fmp_response(profile_data):
+        return {"error": "Failed to get company profile"}
+    
+    # Get sector performance
+    sector_name = profile_data[0].get('sector')
+    sector_perf = make_fmp_request(f"/v3/sector-performance")
+    
+    # Get industry classification
+    industry_data = make_fmp_request(f"/v4/standard_industrial_classification?symbol={ticker}")
+    
+    # Compile sector profile
+    return {
+        "sector_name": sector_name,
+        "industry_name": profile_data[0].get('industry'),
+        "sic_code": industry_data[0].get('sicCode') if industry_data else None,
+        "sector_performance": next(
+            (item for item in sector_perf if item.get('sector') == sector_name), 
+            None
+        ) if validate_fmp_response(sector_perf) else None,
+        "company_profile": {
+            "market_cap": profile_data[0].get('mktCap'),
+            "beta": profile_data[0].get('beta'),
+            "volume": profile_data[0].get('volAvg'),
+            "exchange": profile_data[0].get('exchange'),
+        }
+    }
+
+def get_sector_peers(ticker: str, limit: int = 10) -> Dict:
+    """
+    Get peer companies in the same sector with similar characteristics.
+    
+    Args:
+        ticker (str): Company ticker symbol
+        limit (int): Maximum number of peers to return
+        
+    Returns:
+        Dict containing:
+        - peer_list
+        - comparison_metrics
+        - sector_averages
+    """
+    # Get company profile first
+    profile = get_sector_profile(ticker)
+    if "error" in profile:
+        return profile
+    
+    # Use stock screener to find peers
+    screener_params = {
+        "sector": profile["sector_name"],
+        "industry": profile["industry_name"],
+        "limit": limit * 2  # Get extra for filtering
+    }
+    
+    peers_data = make_fmp_request("/v3/stock-screener", screener_params)
+    if not validate_fmp_response(peers_data):
+        return {"error": "Failed to get peer data"}
+    
+    # Filter and enrich peer data
+    peers = []
+    for peer in peers_data:
+        if peer['symbol'] != ticker:  # Exclude the input company
+            peers.append({
+                "symbol": peer['symbol'],
+                "name": peer['companyName'],
+                "market_cap": peer['marketCap'],
+                "price": peer['price'],
+                "beta": peer.get('beta'),
+                "sector": peer['sector']
+            })
+    
+    # Sort by market cap similarity and take top 'limit' peers
+    company_mkt_cap = profile["company_profile"]["market_cap"]
+    peers.sort(key=lambda x: abs(x['market_cap'] - company_mkt_cap))
+    peers = peers[:limit]
+    
+    return {
+        "base_company": ticker,
+        "sector": profile["sector_name"],
+        "industry": profile["industry_name"],
+        "peer_companies": peers,
+        "sector_metrics": {
+            "avg_market_cap": sum(p['market_cap'] for p in peers) / len(peers),
+            "avg_beta": sum(p['beta'] for p in peers if p['beta']) / len([p for p in peers if p['beta']]),
+            "total_peers_found": len(peers)
+        }
+    }
+
+#####################################
+# Enhanced Revenue Analysis
+#####################################
+
+def get_revenue_metrics(ticker: str) -> Dict:
+    """
+    Get comprehensive revenue metrics for a company.
+    
+    Returns:
+        Dict containing:
+        - annual_revenue
+        - revenue_growth
+        - revenue_multiple
+        - sector_comparison
+    """
+    # Get income statement for revenue data
+    income_stmt = make_fmp_request(f"/v3/income-statement/{ticker}?limit=4")
+    if not validate_fmp_response(income_stmt):
+        return {"error": "Failed to get income statement data"}
+    
+    # Get key metrics for multiples
+    key_metrics = make_fmp_request(f"/v3/key-metrics/{ticker}?limit=1")
+    if not validate_fmp_response(key_metrics):
+        return {"error": "Failed to get key metrics"}
+    
+    # Calculate metrics
+    latest_revenue = income_stmt[0].get('revenue', 0)
+    market_cap = key_metrics[0].get('marketCap', 0)
+    revenue_multiple = market_cap / latest_revenue if latest_revenue > 0 else None
+    
+    # Calculate year-over-year growth
+    if len(income_stmt) >= 2:
+        prev_revenue = income_stmt[1].get('revenue', 0)
+        yoy_growth = ((latest_revenue - prev_revenue) / prev_revenue) if prev_revenue > 0 else None
+    else:
+        yoy_growth = None
+    
+    return {
+        "annual_revenue": latest_revenue,
+        "market_cap": market_cap,
+        "revenue_multiple": revenue_multiple,
+        "yoy_growth": yoy_growth,
+        "period": income_stmt[0].get('date'),
+        "currency": income_stmt[0].get('reportedCurrency', 'USD')
+    }
+
+def find_stocks_below_revenue(sector: str = None, max_multiple: float = 1.0) -> List[Dict]:
+    """
+    Find stocks trading below or near their annual revenue.
+    
+    Args:
+        sector (str, optional): Filter by specific sector
+        max_multiple (float): Maximum revenue multiple to consider
+        
+    Returns:
+        List of stocks with their metrics
+    """
+    # Get screener data with basic metrics
+    screener_params = {
+        "limit": 1000,
+    }
+    if sector:
+        screener_params["sector"] = sector
+    
+    stocks = make_fmp_request("/v3/stock-screener", screener_params)
+    if not validate_fmp_response(stocks):
+        return []
+    
+    # Filter and analyze stocks
+    below_revenue = []
+    for stock in stocks:
+        ticker = stock.get('symbol')
+        metrics = get_revenue_metrics(ticker)
+        
+        if "error" in metrics or not metrics.get('revenue_multiple'):
+            continue
+            
+        if metrics['revenue_multiple'] <= max_multiple:
+            below_revenue.append({
+                "symbol": ticker,
+                "name": stock.get('companyName'),
+                "sector": stock.get('sector'),
+                "industry": stock.get('industry'),
+                "market_cap": metrics['market_cap'],
+                "annual_revenue": metrics['annual_revenue'],
+                "revenue_multiple": metrics['revenue_multiple'],
+                "yoy_growth": metrics['yoy_growth']
+            })
+    
+    # Sort by revenue multiple
+    below_revenue.sort(key=lambda x: x['revenue_multiple'])
+    
+    return below_revenue
+
+def analyze_revenue_vs_sector(ticker: str) -> Dict:
+    """
+    Compare company's revenue metrics against sector peers.
+    
+    Returns:
+        Dict containing comparison metrics and rankings
+    """
+    # Get company metrics
+    company_metrics = get_revenue_metrics(ticker)
+    if "error" in company_metrics:
+        return company_metrics
+    
+    # Get sector peers
+    profile = get_sector_profile(ticker)
+    if "error" in profile:
+        return profile
+    
+    # Get peer metrics
+    peers = get_sector_peers(ticker, limit=20)
+    if "error" in peers:
+        return peers
+    
+    # Calculate peer metrics
+    peer_multiples = []
+    peer_growth_rates = []
+    
+    for peer in peers['peer_companies']:
+        peer_metrics = get_revenue_metrics(peer['symbol'])
+        if "error" not in peer_metrics and peer_metrics.get('revenue_multiple'):
+            peer_multiples.append(peer_metrics['revenue_multiple'])
+            if peer_metrics.get('yoy_growth'):
+                peer_growth_rates.append(peer_metrics['yoy_growth'])
+    
+    return {
+        "company_metrics": company_metrics,
+        "sector_comparison": {
+            "median_multiple": np.median(peer_multiples) if peer_multiples else None,
+            "multiple_percentile": percentile_rank(company_metrics['revenue_multiple'], peer_multiples) if peer_multiples else None,
+            "median_growth": np.median(peer_growth_rates) if peer_growth_rates else None,
+            "growth_percentile": percentile_rank(company_metrics['yoy_growth'], peer_growth_rates) if peer_growth_rates and company_metrics.get('yoy_growth') else None
+        },
+        "peer_stats": {
+            "multiple_range": {
+                "min": min(peer_multiples) if peer_multiples else None,
+                "max": max(peer_multiples) if peer_multiples else None,
+                "p25": np.percentile(peer_multiples, 25) if peer_multiples else None,
+                "p75": np.percentile(peer_multiples, 75) if peer_multiples else None
+            },
+            "peer_count": len(peer_multiples)
+        }
+    }
+
+def percentile_rank(value: float, distribution: List[float]) -> float:
+    """Helper function to calculate percentile rank of a value in a distribution."""
+    if not distribution:
+        return None
+    return sum(1 for x in distribution if x < value) / len(distribution) * 100
+
+
+def analyze_margin_trends(ticker: str, years: int = 5) -> Dict:
+    """
+    Analyze comprehensive margin trends and cost structures.
+    
+    Args:
+        ticker: Company ticker symbol
+        years: Number of years of historical data
+        
+    Returns:
+        Dict containing margin analysis, trends, and peer comparison
+    """
+    # Get historical income statements
+    income_stmt = make_fmp_request(f"/v3/income-statement/{ticker}?limit={years}")
+    if not validate_fmp_response(income_stmt):
+        return {"error": "Failed to get income statement data"}
+    
+    # Calculate margin trends
+    margin_trends = []
+    for stmt in income_stmt:
+        revenue = stmt.get('revenue', 0)
+        if revenue > 0:
+            margin_trends.append({
+                'date': stmt['date'],
+                'gross_margin': (stmt.get('grossProfit', 0) / revenue) * 100,
+                'operating_margin': (stmt.get('operatingIncome', 0) / revenue) * 100,
+                'net_margin': (stmt.get('netIncome', 0) / revenue) * 100,
+                'cost_structure': {
+                    'cogs_pct': (stmt.get('costOfRevenue', 0) / revenue) * 100,
+                    'operating_expenses_pct': (stmt.get('operatingExpenses', 0) / revenue) * 100,
+                    'rd_pct': (stmt.get('researchAndDevelopmentExpenses', 0) / revenue) * 100,
+                    'sga_pct': (stmt.get('sellingGeneralAndAdministrativeExpenses', 0) / revenue) * 100
+                }
+            })
+    
+    # Calculate margin momentum (year-over-year changes)
+    margin_momentum = []
+    for i in range(len(margin_trends) - 1):
+        current = margin_trends[i]
+        previous = margin_trends[i + 1]
+        momentum = {
+            'period': f"{previous['date']} to {current['date']}",
+            'gross_margin_change': current['gross_margin'] - previous['gross_margin'],
+            'operating_margin_change': current['operating_margin'] - previous['operating_margin'],
+            'net_margin_change': current['net_margin'] - previous['net_margin']
+        }
+        margin_momentum.append(momentum)
+    
+    # Get peer comparison
+    peers = get_sector_peers(ticker, limit=10)
+    peer_margins = []
+    
+    if "error" not in peers:
+        for peer in peers['peer_companies']:
+            peer_income = make_fmp_request(f"/v3/income-statement/{peer['symbol']}?limit=1")
+            if validate_fmp_response(peer_income) and peer_income[0].get('revenue', 0) > 0:
+                revenue = peer_income[0]['revenue']
+                peer_margins.append({
+                    'symbol': peer['symbol'],
+                    'gross_margin': (peer_income[0].get('grossProfit', 0) / revenue) * 100,
+                    'operating_margin': (peer_income[0].get('operatingIncome', 0) / revenue) *100,
+                    'net_margin': (peer_income[0].get('netIncome', 0) / revenue) *100
+                })
+    
+    # Calculate latest margins for percentile ranking
+    latest_margins = margin_trends[0] if margin_trends else None
+    
+    return {
+        'company_name': ticker,
+        'analysis_period': f"{margin_trends[-1]['date']} to {margin_trends[0]['date']}",
+        'current_margins': latest_margins,
+        'margin_trends': margin_trends,
+        'margin_momentum': margin_momentum,
+        'peer_comparison': {
+            'gross_margin_percentile': percentile_rank(
+                latest_margins['gross_margin'] if latest_margins else None,
+                [p['gross_margin'] for p in peer_margins]
+            ),
+            'operating_margin_percentile': percentile_rank(
+                latest_margins['operating_margin'] if latest_margins else None,
+                [p['operating_margin'] for p in peer_margins]
+            ),
+            'net_margin_percentile': percentile_rank(
+                latest_margins['net_margin'] if latest_margins else None,
+                [p['net_margin'] for p in peer_margins]
+            ),
+            'peer_stats': {
+                'median_gross_margin': np.median([p['gross_margin'] for p in peer_margins]) if peer_margins else None,
+                'median_operating_margin': np.median([p['operating_margin'] for p in peer_margins]) if peer_margins else None,
+                'median_net_margin': np.median([p['net_margin'] for p in peer_margins]) if peer_margins else None,
+                'peer_count': len(peer_margins)
+            }
+        }
+    }
+
+def get_sector_multiples(ticker: str) -> Dict:
+    """
+    Get comprehensive sector-specific multiples for analysis.
+    
+    Returns:
+        Dict containing:
+        - Company multiples
+        - Sector average multiples
+        - Percentile rankings
+        - Growth-adjusted ratios
+    """
+    # Get company metrics
+    key_metrics = make_fmp_request(f"/v3/key-metrics-ttm/{ticker}")
+    ratios = make_fmp_request(f"/v3/ratios-ttm/{ticker}")
+    
+    if not validate_fmp_response(key_metrics) or not validate_fmp_response(ratios):
+        return {"error": "Failed to get company metrics"}
+    
+    # Get sector peers for comparison
+    peers = get_sector_peers(ticker, limit=20)
+    if "error" in peers:
+        return peers
+    
+    # Initialize peer metrics lists
+    peer_metrics = {
+        'ev_ebitda': [],
+        'pe_ratio': [],
+        'price_book': [],
+        'price_sales': [],
+        'gross_margin': [],
+        'operating_margin': [],
+        'net_margin': []
+    }
+    
+    # Collect peer metrics
+    for peer in peers['peer_companies']:
+        peer_key_metrics = make_fmp_request(f"/v3/key-metrics-ttm/{peer['symbol']}")
+        peer_ratios = make_fmp_request(f"/v3/ratios-ttm/{peer['symbol']}")
+        
+        if validate_fmp_response(peer_key_metrics) and validate_fmp_response(peer_ratios):
+            metrics = peer_key_metrics[0]
+            ratios_data = peer_ratios[0]
+            
+            # Collect valid metrics
+            if metrics.get('enterpriseValueOverEBITDA'):
+                peer_metrics['ev_ebitda'].append(metrics['enterpriseValueOverEBITDA'])
+            if metrics.get('peRatio'):
+                peer_metrics['pe_ratio'].append(metrics['peRatio'])
+            if metrics.get('priceToBookRatio'):
+                peer_metrics['price_book'].append(metrics['priceToBookRatio'])
+            if ratios_data.get('priceToSalesRatio'):
+                peer_metrics['price_sales'].append(ratios_data['priceToSalesRatio'])
+            if ratios_data.get('grossProfitMargin'):
+                peer_metrics['gross_margin'].append(ratios_data['grossProfitMargin'])
+            if ratios_data.get('operatingProfitMargin'):
+                peer_metrics['operating_margin'].append(ratios_data['operatingProfitMargin'])
+            if ratios_data.get('netProfitMargin'):
+                peer_metrics['net_margin'].append(ratios_data['netProfitMargin'])
+    
+    # Calculate company's metrics
+    company_metrics = {
+        'ev_ebitda': key_metrics[0].get('enterpriseValueOverEBITDA'),
+        'pe_ratio': key_metrics[0].get('peRatio'),
+        'price_book': key_metrics[0].get('priceToBookRatio'),
+        'price_sales': ratios[0].get('priceToSalesRatio'),
+        'gross_margin': ratios[0].get('grossProfitMargin'),
+        'operating_margin': ratios[0].get('operatingProfitMargin'),
+        'net_margin': ratios[0].get('netProfitMargin')
+    }
+    
+    # Calculate sector averages and percentiles
+    sector_analysis = {}
+    for metric, values in peer_metrics.items():
+        if values:  # Only analyze if we have peer data
+            sector_analysis[metric] = {
+                'company_value': company_metrics[metric],
+                'sector_median': np.median(values),
+                'sector_avg': np.mean(values),
+                'percentile': percentile_rank(company_metrics[metric], values) if company_metrics[metric] else None,
+                'range': {
+                    'min': min(values),
+                    'max': max(values),
+                    'p25': np.percentile(values, 25),
+                    'p75': np.percentile(values, 75)
+                }
+            }
+    
+    return {
+        'company_name': peers['base_company'],
+        'sector': peers['sector'],
+        'industry': peers['industry'],
+        'metrics_analysis': sector_analysis,
+        'peer_count': len(peers['peer_companies']),
+        'analysis_date': datetime.now().strftime('%Y-%m-%d')
+    }
+
+#####################################
+# Enhanced Growth Analysis
+#####################################
+def analyze_business_quality(ticker: str, years: int = 5) -> Dict:
+    """
+    Analyze business quality metrics including returns on capital,
+    cash flow efficiency, and capital allocation.
+    
+    Args:
+        ticker: Company ticker symbol
+        years: Number of years for historical analysis
+        
+    Returns:
+        Dict containing quality metrics, trends, and peer comparison
+    """
+    # Get required financial statements
+    income_stmt = make_fmp_request(f"/v3/income-statement/{ticker}?limit={years}")
+    balance_sheet = make_fmp_request(f"/v3/balance-sheet-statement/{ticker}?limit={years}")
+    cash_flow = make_fmp_request(f"/v3/cash-flow-statement/{ticker}?limit={years}")
+    
+    if not all(validate_fmp_response(x) for x in [income_stmt, balance_sheet, cash_flow]):
+        return {"error": "Failed to get financial statements"}
+    
+    # Calculate quality metrics over time
+    quality_trends = []
+    
+    for i in range(len(income_stmt)):
+        if i >= len(balance_sheet) or i >= len(cash_flow):
+            break
+            
+        inc = income_stmt[i]
+        bal = balance_sheet[i]
+        cf = cash_flow[i]
+        
+        # Calculate invested capital
+        total_assets = bal.get('totalAssets', 0)
+        current_liabilities = bal.get('totalCurrentLiabilities', 0)
+        invested_capital = total_assets - current_liabilities
+        
+        # Get operating metrics
+        operating_income = inc.get('operatingIncome', 0)
+        net_income = inc.get('netIncome', 0)
+        total_equity = bal.get('totalStockholdersEquity', 0)
+        
+        # Get cash flow metrics
+        operating_cash_flow = cf.get('operatingCashFlow', 0)
+        capex = cf.get('capitalExpenditure', 0)
+        free_cash_flow = operating_cash_flow + capex  # capex is negative
+        
+        # Calculate key ratios
+        quality_metrics = {
+            'date': inc['date'],
+            'roic': (operating_income * (1 - 0.21)) / invested_capital * 100 if invested_capital else None,  # Assuming 21% tax rate
+            'roe': (net_income / total_equity * 100) if total_equity else None,
+            'fcf_conversion': (free_cash_flow / operating_income * 100) if operating_income else None,
+            'asset_turnover': inc.get('revenue', 0) / total_assets if total_assets else None,
+            'working_capital_efficiency': {
+                'days_receivables': (bal.get('netReceivables', 0) / inc.get('revenue', 0) * 365) if inc.get('revenue', 0) else None,
+                'days_inventory': (bal.get('inventory', 0) / inc.get('costOfRevenue', 0) * 365) if inc.get('costOfRevenue', 0) else None,
+                'days_payables': (bal.get('accountPayables', 0) / inc.get('costOfRevenue', 0) * 365) if inc.get('costOfRevenue', 0) else None
+            },
+            'capital_allocation': {
+                'capex_to_revenue': (abs(capex) / inc.get('revenue', 0) * 100) if inc.get('revenue', 0) else None,
+                'fcf_to_revenue': (free_cash_flow / inc.get('revenue', 0) * 100) if inc.get('revenue', 0) else None,
+                'dividend_payout': (cf.get('dividendsPaid', 0) / net_income * 100) if net_income else None
+            }
+        }
+        quality_trends.append(quality_metrics)
+    
+    # Get peer comparison
+    peers = get_sector_peers(ticker, limit=10)
+    peer_quality = []
+    
+    if "error" not in peers:
+        for peer in peers['peer_companies']:
+            peer_inc = make_fmp_request(f"/v3/income-statement/{peer['symbol']}?limit=1")
+            peer_bal = make_fmp_request(f"/v3/balance-sheet-statement/{peer['symbol']}?limit=1")
+            
+            if validate_fmp_response(peer_inc) and validate_fmp_response(peer_bal):
+                inc = peer_inc[0]
+                bal = peer_bal[0]
+                
+                invested_capital = bal.get('totalAssets', 0) - bal.get('totalCurrentLiabilities', 0)
+                operating_income = inc.get('operatingIncome', 0)
+                
+                if invested_capital and operating_income:
+                    roic = (operating_income * (1 - 0.21)) / invested_capital * 100
+                    peer_quality.append({
+                        'symbol': peer['symbol'],
+                        'roic': roic,
+                        'roe': (inc.get('netIncome', 0) / bal.get('totalStockholdersEquity', 0) * 100) 
+                               if bal.get('totalStockholdersEquity', 0) else None
+                    })
+    
+    # Get latest metrics for percentile ranking
+    latest_metrics = quality_trends[0] if quality_trends else None
+    
+    return {
+        'company_name': ticker,
+        'analysis_period': f"{quality_trends[-1]['date']} to {quality_trends[0]['date']}",
+        'current_metrics': latest_metrics,
+        'quality_trends': quality_trends,
+        'peer_comparison': {
+            'roic_percentile': percentile_rank(
+                latest_metrics['roic'] if latest_metrics else None,
+                [p['roic'] for p in peer_quality if p['roic']]
+            ),
+            'roe_percentile': percentile_rank(
+                latest_metrics['roe'] if latest_metrics else None,
+                [p['roe'] for p in peer_quality if p['roe']]
+            ),
+            'peer_stats': {
+                'median_roic': np.median([p['roic'] for p in peer_quality if p['roic']]) if peer_quality else None,
+                'median_roe': np.median([p['roe'] for p in peer_quality if p['roe']]) if peer_quality else None,
+                'peer_count': len(peer_quality)
+            }
+        }
+    }
+
+
+def analyze_growth_metrics(ticker: str, years: int = 5) -> Dict:
+    """
+    Analyze comprehensive growth metrics and trends.
+    
+    Args:
+        ticker: Company ticker symbol
+        years: Number of years of historical data to analyze
+        
+    Returns:
+        Dict containing growth metrics, trends, and peer comparison
+    """
+    # Get historical financials
+    income_stmt = make_fmp_request(f"/v3/income-statement/{ticker}?limit={years}")
+    balance_sheet = make_fmp_request(f"/v3/balance-sheet-statement/{ticker}?limit={years}")
+    
+    if not validate_fmp_response(income_stmt) or not validate_fmp_response(balance_sheet):
+        return {"error": "Failed to get financial statements"}
+    
+    # Calculate growth rates
+    growth_rates = {
+        'revenue': [],
+        'operating_income': [],
+        'net_income': [],
+        'eps': []
+    }
+    
+    # Calculate year-over-year growth rates
+    for i in range(len(income_stmt) - 1):
+        current = income_stmt[i]
+        previous = income_stmt[i + 1]
+        
+        growth_rates['revenue'].append(
+            ((current['revenue'] - previous['revenue']) / previous['revenue'])
+            if previous['revenue'] else None
+        )
+        
+        growth_rates['operating_income'].append(
+            ((current['operatingIncome'] - previous['operatingIncome']) / previous['operatingIncome'])
+            if previous['operatingIncome'] else None
+        )
+        
+        growth_rates['net_income'].append(
+            ((current['netIncome'] - previous['netIncome']) / previous['netIncome'])
+            if previous['netIncome'] else None
+        )
+
+        growth_rates['eps'].append(
+            ((current['eps'] - previous['eps']) / previous['eps'])
+            if previous['eps'] else None
+        )
+        
+    # Calculate compound annual growth rates (CAGR)
+    def calculate_cagr(start_value: float, end_value: float, years: int) -> float:
+        if not start_value or not end_value or years == 0:
+            return None
+        return (end_value / start_value) ** (1/years) - 1
+    
+    latest = income_stmt[0]
+    oldest = income_stmt[-1]
+    period_years = len(income_stmt) - 1
+    
+    cagr_metrics = {
+        'revenue_cagr': calculate_cagr(oldest['revenue'], latest['revenue'], period_years),
+        'operating_income_cagr': calculate_cagr(oldest['operatingIncome'], latest['operatingIncome'], period_years),
+        'net_income_cagr': calculate_cagr(oldest['netIncome'], latest['netIncome'], period_years),
+        'eps_cagr': calculate_cagr(oldest['eps'], latest['eps'], period_years)
+    }
+    
+    # Get peer comparison
+    peers = get_sector_peers(ticker, limit=10)
+    peer_growth = []
+    
+    if "error" not in peers:
+        for peer in peers['peer_companies']:
+            peer_income = make_fmp_request(f"/v3/income-statement/{peer['symbol']}?limit={years}")
+            if validate_fmp_response(peer_income) and len(peer_income) >= 2:
+                current_rev = peer_income[0]['revenue']
+                prev_rev = peer_income[1]['revenue']
+                if prev_rev:
+                    peer_growth.append({
+                        'symbol': peer['symbol'],
+                        'yoy_growth': (current_rev - prev_rev) / prev_rev
+                    })
+    
+    return {
+        'company_name': ticker,
+        'analysis_period': f"{oldest['date']} to {latest['date']}",
+        'growth_rates': {
+            'recent_yoy': {
+                'revenue': growth_rates['revenue'][0] if growth_rates['revenue'] else None,
+                'operating_income': growth_rates['operating_income'][0] if growth_rates['operating_income'] else None,
+                'net_income': growth_rates['net_income'][0] if growth_rates['net_income'] else None,
+                'eps': growth_rates['eps'][0] if growth_rates['eps'] else None
+            },
+            'historical': {
+                'revenue': growth_rates['revenue'],
+                'operating_income': growth_rates['operating_income'],
+                'net_income': growth_rates['net_income'],
+                'eps': growth_rates['eps']
+            },
+            'cagr': cagr_metrics
+        },
+        'peer_comparison': {
+            'revenue_growth_percentile': percentile_rank(
+                growth_rates['revenue'][0] if growth_rates['revenue'] else None,
+                [p['yoy_growth'] for p in peer_growth]
+            ),
+            'peer_median_growth': np.median([p['yoy_growth'] for p in peer_growth]) if peer_growth else None,
+            'peer_data': peer_growth
+        }
+    }
 

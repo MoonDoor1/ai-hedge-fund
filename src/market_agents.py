@@ -1,12 +1,21 @@
 from typing import Dict, List
-import json
 from src.tools import (
-    get_market_cap_data, get_revenue_data, calculate_revenue_multiple,
-    get_sector_classification, analyze_sector_metrics,
-    calculate_moving_averages, analyze_price_targets,
-    get_analyst_ratings, get_news_events,
-    analyze_volatility_events, calculate_event_impact
+    get_revenue_data,
+    analyze_sector_metrics,
+    analyze_margin_trends,
+    analyze_growth_metrics,
+    analyze_price_targets,
+    make_fmp_request,
+    calculate_moving_averages,
+    calculate_macd,
+    calculate_rsi,
+    calculate_bollinger_bands,
+    calculate_obv,
+    get_analyst_ratings,
+    get_news_events,
+    analyze_volatility_events
 )
+import pandas as pd
 
 class RevenueAnalysisAgent:
     """Agent responsible for analyzing revenue metrics and identifying stocks trading below revenue."""
@@ -19,241 +28,292 @@ class RevenueAnalysisAgent:
         Analyzes revenue metrics for a given ticker.
         
         Returns:
-            Dict containing:
-            - revenue_multiple: Current revenue multiple
-            - below_revenue: Boolean indicating if trading below revenue
-            - pe_ratio: Current P/E ratio
-            - recommendation: Buy/Hold/Sell based on revenue metrics
+            Dict containing analysis results and recommendations
         """
-        market_cap = get_market_cap_data(ticker)
-        revenue_data = get_revenue_data(ticker)
-        multiple_data = calculate_revenue_multiple(ticker)
-        
-        return {
-            "analysis_type": "revenue",
-            "metrics": multiple_data,
-            "recommendation": self._generate_recommendation(multiple_data)
-        }
-
-    def _generate_recommendation(self, metrics: Dict) -> str:
-        """
-        Generate revenue-based recommendation by analyzing revenue multiples
-        and comparing to sector averages.
-        
-        Customization Points:
-        1. Multiple thresholds (1.0x, 0.7x, 1.3x) - adjust based on:
-           - Sector norms (e.g., higher for SaaS)
-           - Market conditions
-           - Growth rates
-        
-        2. Revenue quality factors to consider adding:
-           - Recurring revenue %
-           - YoY growth rate
-           - Gross margin
-        """
-        # Extract key metrics
-        revenue_multiple = metrics.get('multiple')
-        sector_avg_multiple = metrics.get('sector_average')
-        growth_rate = metrics.get('growth_rate', 0)
-        
-        if not revenue_multiple or not sector_avg_multiple:
+        try:
+            # Get revenue data using our new function
+            revenue_data = get_revenue_data(ticker)
+            if "error" in revenue_data:
+                return {"error": f"Failed to get revenue data: {revenue_data['error']}"}
+            
+            # Get current market data
+            quote = make_fmp_request(f"/v3/quote/{ticker}")
+            if not quote or not isinstance(quote, list):
+                return {"error": "Failed to get current market data"}
+            
+            market_cap = quote[0].get('marketCap', 0)
+            current_revenue = revenue_data.get('revenue', 0)
+            
+            # Calculate key metrics
+            revenue_multiple = market_cap / current_revenue if current_revenue else None
+            growth_rate = revenue_data.get('growth')
+            
+            # Get sector comparison
+            sector_data = analyze_sector_metrics(ticker)
+            sector_avg_multiple = sector_data.get('sector_metrics', {}).get('avg_revenue_multiple')
+            
+            # Generate recommendation
+            recommendation = self._generate_recommendation(
+                revenue_multiple=revenue_multiple,
+                sector_avg=sector_avg_multiple,
+                growth_rate=growth_rate
+            )
+            
+            return {
+                "analysis_type": "revenue",
+                "metrics": {
+                    "revenue_multiple": revenue_multiple,
+                    "sector_average": sector_avg_multiple,
+                    "growth_rate": growth_rate,
+                    "current_revenue": current_revenue,
+                    "market_cap": market_cap,
+                    "revenue_per_share": revenue_data.get('revenue_per_share'),
+                    "peer_comparison": sector_data.get('peer_metrics', [])
+                },
+                "historical_data": revenue_data.get('historical_data', []),
+                "recommendation": recommendation,
+                "analysis_date": revenue_data.get('period_end')
+            }
+            
+        except Exception as e:
+            return {"error": f"Analysis failed: {str(e)}"}
+    
+    def _generate_recommendation(self, revenue_multiple: float, sector_avg: float, growth_rate: float) -> str:
+        """Generate revenue-based recommendation."""
+        if not all([revenue_multiple, sector_avg, growth_rate]):
             return "HOLD - Insufficient data"
+            
+        # Score based on multiple vs sector
+        multiple_score = 1 if revenue_multiple < sector_avg else -1
         
-        # CUSTOMIZATION: Adjust multiple thresholds based on growth
-        # Example: Higher growth = higher acceptable multiple
-        growth_adjustment = min(max(growth_rate, 0), 0.5)  # Cap at 50%
-        threshold_adjustment = 1 + growth_adjustment
+        # Adjust for growth
+        growth_score = 1 if growth_rate > 0.1 else (0 if growth_rate > 0 else -1)
         
-        # CUSTOMIZATION: Add sector-specific adjustments
-        # sector_type = metrics.get('sector_type')
-        # if sector_type == 'SaaS':
-        #     threshold_adjustment *= 1.5
+        # Combine scores
+        total_score = multiple_score + growth_score
         
-        # Generate recommendation
-        if revenue_multiple < (1.0 * threshold_adjustment):
-            return "STRONG BUY - Trading below revenue"
-        elif revenue_multiple < (sector_avg_multiple * 0.7 * threshold_adjustment):
-            return "BUY - Trading significantly below sector average"
-        elif revenue_multiple > (sector_avg_multiple * 1.3 * threshold_adjustment):
-            return "SELL - Trading significantly above sector average"
+        if total_score >= 1.5:
+            return "STRONG BUY - Undervalued with strong growth"
+        elif total_score > 0:
+            return "BUY - Relatively attractive valuation"
+        elif total_score < -1:
+            return "SELL - Overvalued with weak growth"
         else:
-            return "HOLD - Trading within normal range"
+            return "HOLD - Fair valuation"
 
 class SectorAnalysisAgent:
     """Agent responsible for sector-specific analysis and comparisons."""
     
     def analyze(self, ticker: str) -> Dict:
         """
-        Performs sector-specific analysis.
-        
-        Returns:
-            Dict containing:
-            - sector_info: Sector classification
-            - peer_comparison: Comparison with peer companies
-            - sector_metrics: Key sector-specific metrics
+        Performs comprehensive sector analysis using multiple metrics.
         """
-        sector_data = get_sector_classification(ticker)
-        sector_metrics = analyze_sector_metrics(ticker)
-        
-        return {
-            "analysis_type": "sector",
-            "sector_data": sector_data,
-            "metrics": sector_metrics,
-            "recommendation": self._generate_recommendation(sector_metrics)
-        }
-
-    def _generate_recommendation(self, metrics: Dict) -> str:
-        """
-        Generate sector-based recommendation by comparing company metrics
-        against peer group.
-        
-        Customization Points:
-        1. Scoring weights - adjust importance of:
-           - Margin comparison
-           - Growth rates
-           - Market position
-        
-        2. Peer group selection:
-           - Size similarity
-           - Business model
-           - Geographic exposure
-        """
-        sector_metrics = metrics.get('sector_metrics', {})
-        peer_rankings = metrics.get('peer_rankings', {})
-        
-        # Initialize scoring system
-        score = 0
-        reasons = []
-        
-        # CUSTOMIZATION: Adjust weights for different metrics
-        weights = {
-            'margin_rank': 2.0,  # Higher weight for profitability
-            'growth_rank': 1.5,  # Medium weight for growth
-            'multiple_rank': 1.0  # Lower weight for valuation
-        }
-        
-        # Score: Net Margin Ranking
-        margin_rank = peer_rankings.get('net_margin_rank', 0)
-        if margin_rank <= 3:
-            score += weights['margin_rank'] * 2
-            reasons.append("Top 3 in sector by net margin")
-        elif margin_rank <= 5:
-            score += weights['margin_rank']
-            reasons.append("Top 5 in sector by net margin")
-        
-        # Score: Growth Ranking
-        growth_rank = peer_rankings.get('growth_rank', 0)
-        if growth_rank <= 3:
-            score += weights['growth_rank'] * 2
-            reasons.append("Top 3 in sector by growth")
-        elif growth_rank <= 5:
-            score += weights['growth_rank']
-            reasons.append("Top 5 in sector by growth")
-        
-        # Score: Multiple Comparison
-        multiple_percentile = sector_metrics.get('revenue_multiple', {}).get('percentile', 50)
-        if multiple_percentile < 25:
-            score += weights['multiple_rank'] * 2
-            reasons.append("Attractive valuation vs peers")
-        elif multiple_percentile < 40:
-            score += weights['multiple_rank']
-            reasons.append("Reasonable valuation vs peers")
-        
-        # CUSTOMIZATION: Adjust thresholds for final recommendation
-        # Consider market conditions, sector momentum, etc.
-        if score >= 6:
-            return f"STRONG BUY - {'; '.join(reasons)}"
-        elif score >= 3:
-            return f"BUY - {'; '.join(reasons)}"
-        elif score >= 0:
-            return f"HOLD - Mixed sector comparison"
-        else:
-            return "SELL - Underperforming sector peers"
+        try:
+            # Get sector metrics
+            sector_data = analyze_sector_metrics(ticker)
+            if "error" in sector_data:
+                return {"error": f"Sector analysis failed: {sector_data['error']}"}
+            
+            # Get margin trends
+            margin_data = analyze_margin_trends(ticker)
+            
+            # Get growth metrics
+            growth_data = analyze_growth_metrics(ticker)
+            
+            return {
+                "analysis_type": "sector",
+                "sector_info": {
+                    "sector": sector_data.get('sector_name'),
+                    "industry": sector_data.get('industry'),
+                    "peer_count": len(sector_data.get('peer_metrics', []))
+                },
+                "metrics": {
+                    "margins": margin_data.get('current_margins'),
+                    "margin_trends": margin_data.get('margin_trends'),
+                    "growth_metrics": growth_data,
+                    "sector_metrics": sector_data.get('sector_metrics'),
+                    "peer_comparison": sector_data.get('peer_metrics')
+                },
+                "recommendation": self._generate_sector_recommendation(
+                    margin_data=margin_data,
+                    growth_data=growth_data,
+                    sector_data=sector_data
+                )
+            }
+            
+        except Exception as e:
+            return {"error": f"Analysis failed: {str(e)}"}
+    
+    def _generate_sector_recommendation(self, margin_data: Dict, growth_data: Dict, sector_data: Dict) -> str:
+        """Generate sector-based recommendation."""
+        try:
+            # Score margins vs peers
+            margin_score = 0
+            if margin_data and 'peer_comparison' in margin_data:
+                peer_comp = margin_data['peer_comparison']
+                margin_score += 1 if peer_comp.get('operating_margin_percentile', 0) > 75 else -1
+                
+            # Score growth vs sector
+            growth_score = 0
+            if growth_data and not isinstance(growth_data, str):
+                revenue_growth = growth_data.get('revenue', [])
+                if revenue_growth and len(revenue_growth) > 0:
+                    growth_score += 1 if revenue_growth[0] > 0.1 else -1
+            
+            total_score = margin_score + growth_score
+            
+            if total_score >= 1.5:
+                return "STRONG SECTOR POSITION - Above average margins and growth"
+            elif total_score > 0:
+                return "FAVORABLE SECTOR POSITION - Competitive in sector"
+            elif total_score < -1:
+                return "WEAK SECTOR POSITION - Below peer performance"
+            else:
+                return "NEUTRAL SECTOR POSITION - Average performance"
+                
+        except Exception as e:
+            return f"Unable to generate recommendation: {str(e)}"
 
 class TechnicalAnalysisAgent:
     """Agent responsible for technical analysis and price targets."""
     
     def analyze(self, ticker: str) -> Dict:
         """
-        Performs technical analysis.
-        
-        Returns:
-            Dict containing:
-            - moving_averages: MA analysis
-            - price_targets: Target price analysis
-            - technical_signals: Buy/Sell signals
-        """
-        ma_data = calculate_moving_averages(ticker)
-        target_data = analyze_price_targets(ticker)
-        
-        return {
-            "analysis_type": "technical",
-            "moving_averages": ma_data,
-            "price_targets": target_data,
-            "recommendation": self._generate_recommendation(ma_data, target_data)
-        }
-
-    def _generate_recommendation(self, ma_data: Dict, target_data: Dict) -> str:
-        """
-        Generate technical analysis recommendation based on moving averages,
+        Performs comprehensive technical analysis including moving averages,
         price targets, and technical indicators.
         
-        Customization Points:
-        1. Moving Average Signals:
-           - Adjust MA periods (75/200 default)
-           - Add different MA types (EMA, WMA)
-           - Volume-weighted adjustments
-        
-        2. Price Target Analysis:
-           - Analyst credibility weighting
-           - Target dispersion impact
-           - Recent revision weighting
-        
-        3. Signal Strength:
-           - Adjust threshold levels
-           - Add momentum indicators
-           - Consider volatility regime
+        Returns:
+            Dict containing technical analysis results and recommendations
         """
-        signals = []
-        
-        # CUSTOMIZATION: Adjust MA thresholds based on volatility
-        volatility_factor = ma_data.get('volatility', 1.0)
-        ma_threshold = 0.05 * (1 + volatility_factor)  # Dynamic threshold
-        
-        # Moving Average Signals
-        if ma_data['price_to_75ma'] > (1 + ma_threshold):
-            signals.append(("bullish", "Trading above 75-day MA"))
-        elif ma_data['price_to_75ma'] < (1 - ma_threshold):
-            signals.append(("bearish", "Trading below 75-day MA"))
-        
-        if ma_data['price_to_200ma'] > (1 + ma_threshold):
-            signals.append(("bullish", "Trading above 200-day MA"))
-        elif ma_data['price_to_200ma'] < (1 - ma_threshold):
-            signals.append(("bearish", "Trading below 200-day MA"))
-        
-        # CUSTOMIZATION: Price Target Analysis
-        # Add analyst credibility weights
-        upside = target_data.get('upside_potential', 0)
-        target_confidence = target_data.get('analyst_confidence', 0.5)
-        
-        if upside > 20 and target_confidence > 0.6:
-            signals.append(("bullish", f"Strong upside potential: {upside}%"))
-        elif upside < -10 and target_confidence > 0.6:
-            signals.append(("bearish", f"Significant downside risk: {upside}%"))
-        
-        # Count and weight signals
-        bullish = sum(1 for signal, _ in signals if signal == "bullish")
-        bearish = sum(1 for signal, _ in signals if signal == "bearish")
-        
-        # Generate recommendation with reasoning
-        if bullish > bearish:
-            reasons = [reason for _, reason in signals if _ == "bullish"]
-            return f"BUY - {'; '.join(reasons)}"
-        elif bearish > bullish:
-            reasons = [reason for _, reason in signals if _ == "bearish"]
-            return f"SELL - {'; '.join(reasons)}"
-        else:
-            return "HOLD - Mixed technical signals"
+        try:
+            # Get moving averages and support/resistance
+            ma_data = calculate_moving_averages(ticker)
+            if "error" in ma_data:
+                return {"error": f"Failed to get MA data: {ma_data['error']}"}
+            
+            # Get price targets
+            target_data = analyze_price_targets(ticker)
+            if "error" in target_data:
+                return {"error": f"Failed to get price targets: {target_data['error']}"}
+            
+            # Get historical prices for technical indicators
+            historical = make_fmp_request(f"/v3/historical-price-full/{ticker}")
+            if not historical or 'historical' not in historical:
+                return {"error": "Failed to get historical data"}
+            
+            # Convert to DataFrame for technical analysis
+            df = pd.DataFrame(historical['historical'])
+            df = df.sort_values('date')  # Ensure chronological order
+            
+            # Calculate technical indicators
+            macd_line, signal_line = calculate_macd(df)
+            rsi = calculate_rsi(df)
+            upper_band, lower_band = calculate_bollinger_bands(df)
+            obv = calculate_obv(df)
+            
+            # Get latest values
+            latest_data = {
+                'macd': {
+                    'macd_line': macd_line.iloc[-1],
+                    'signal_line': signal_line.iloc[-1],
+                    'histogram': macd_line.iloc[-1] - signal_line.iloc[-1]
+                },
+                'rsi': rsi.iloc[-1],
+                'bollinger_bands': {
+                    'upper': upper_band.iloc[-1],
+                    'lower': lower_band.iloc[-1],
+                    'current_price': df['close'].iloc[-1]
+                },
+                'obv': obv.iloc[-1],
+                'obv_change': (obv.iloc[-1] - obv.iloc[-5]) / obv.iloc[-5]  # 5-day OBV change
+            }
+            
+            # Generate comprehensive recommendation
+            recommendation = self._generate_recommendation(
+                ma_data=ma_data,
+                target_data=target_data,
+                technical_data=latest_data
+            )
+            
+            return {
+                "analysis_type": "technical",
+                "moving_averages": {
+                    "ma_75": ma_data.get('ma_75'),
+                    "ma_200": ma_data.get('ma_200'),
+                    "trend_signals": ma_data.get('trend_signals'),
+                    "support_resistance": ma_data.get('support_resistance')
+                },
+                "price_targets": {
+                    "consensus": target_data.get('targetConsensus'),
+                    "high": target_data.get('targetHigh'),
+                    "low": target_data.get('targetLow')
+                },
+                "technical_indicators": latest_data,
+                "recommendation": recommendation
+            }
+            
+        except Exception as e:
+            return {"error": f"Technical analysis failed: {str(e)}"}
+    
+    def _generate_recommendation(self, ma_data: Dict, target_data: Dict, technical_data: Dict) -> str:
+        """Generate technical analysis based recommendation."""
+        try:
+            score = 0
+            signals = []
+            
+            # Score moving averages
+            if ma_data.get('trend_signals', {}).get('golden_cross'):
+                score += 1
+                signals.append("Golden Cross detected")
+            elif ma_data.get('trend_signals', {}).get('death_cross'):
+                score -= 1
+                signals.append("Death Cross detected")
+            
+            # Score RSI
+            rsi = technical_data.get('rsi')
+            if rsi:
+                if rsi < 30:
+                    score += 1
+                    signals.append("Oversold (RSI)")
+                elif rsi > 70:
+                    score -= 1
+                    signals.append("Overbought (RSI)")
+            
+            # Score MACD
+            macd = technical_data.get('macd', {})
+            if macd.get('histogram', 0) > 0 and macd.get('macd_line', 0) > 0:
+                score += 1
+                signals.append("Positive MACD crossover")
+            elif macd.get('histogram', 0) < 0 and macd.get('macd_line', 0) < 0:
+                score -= 1
+                signals.append("Negative MACD crossover")
+            
+            # Score price targets
+            current_price = ma_data.get('current_price', 0)
+            target_consensus = target_data.get('targetConsensus')
+            if current_price and target_consensus:
+                upside = (target_consensus - current_price) / current_price
+                if upside > 0.15:
+                    score += 1
+                    signals.append(f"Price target upside: {upside:.1%}")
+                elif upside < -0.15:
+                    score -= 1
+                    signals.append(f"Price target downside: {upside:.1%}")
+            
+            # Generate final recommendation
+            if score >= 2:
+                return f"STRONG BUY - {'; '.join(signals)}"
+            elif score == 1:
+                return f"BUY - {'; '.join(signals)}"
+            elif score == -1:
+                return f"SELL - {'; '.join(signals)}"
+            elif score <= -2:
+                return f"STRONG SELL - {'; '.join(signals)}"
+            else:
+                return f"HOLD - Mixed signals: {'; '.join(signals)}"
+                
+        except Exception as e:
+            return f"Unable to generate recommendation: {str(e)}"
 
 class MarketSentimentAgent:
     """Agent responsible for analyzing market sentiment, news, and volatility."""

@@ -1,0 +1,10 @@
+2024-12-19 13:32:55,425 - INFO - Starting Test Suite...
+2024-12-19 13:32:55,426 - INFO - 
+Testing API Connectivity...
+2024-12-19 13:32:59,254 - INFO - ✓ API connection successful
+2024-12-19 13:32:59,261 - INFO - 
+=== Testing Sector Analysis Agent ===
+2024-12-19 13:32:59,261 - INFO - 
+Analyzing AAPL...
+2024-12-19 13:33:02,991 - INFO - 
+Tests interrupted by user

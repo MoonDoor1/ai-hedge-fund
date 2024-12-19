@@ -1,187 +1,119 @@
 from src.market_agents import (
-    RevenueAnalysisAgent, 
-    TechnicalAnalysisAgent,
+    RevenueAnalysisAgent,
     SectorAnalysisAgent,
+    TechnicalAnalysisAgent,
     MarketSentimentAgent
 )
-from src.tools import make_fmp_request, analyze_sector_metrics
-import pandas as pd
+from src.tools import make_fmp_request
+import logging
 import time
+from datetime import datetime
+import json
 
-def test_revenue_agent():
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(f'test_run_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'),
+        logging.StreamHandler()
+    ]
+)
+
+def test_sector_analysis():
     """
-    Tests the RevenueAnalysisAgent's ability to:
-    1. Calculate revenue multiples
-    2. Compare against sector averages
-    3. Analyze growth rates
-    4. Generate recommendations
+    Tests the SectorAnalysisAgent's functionality:
+    1. Sector classification
+    2. Peer identification
+    3. Multiple calculations
+    4. Recommendations
     
-    Expected outcomes:
-    - Should return revenue multiple and growth metrics
-    - Should provide sector comparison
-    - Should generate a clear recommendation
+    Logs detailed information about each step and any errors encountered.
     """
-    print("\n=== Testing Revenue Analysis Agent ===")
-    agent = RevenueAnalysisAgent()
-    test_tickers = ['AAPL', 'MSFT', 'WMT']  # Mix of tech and retail
+    logging.info("\n=== Testing Sector Analysis Agent ===")
+    agent = SectorAnalysisAgent()
+    test_tickers = ['APP', 'MSOS']  # Test with known tech companies
     
     for ticker in test_tickers:
-        print(f"\nAnalyzing {ticker}...")
+        logging.info(f"\nAnalyzing {ticker}...")
         try:
             analysis = agent.analyze(ticker)
             
-            if "error" in analysis:
-                print(f"❌ Error analyzing {ticker}: {analysis['error']}")
-                continue
-            
-            # Display core metrics
-            metrics = analysis.get('metrics', {})
-            print("\nCore Metrics:")
-            print(f"Revenue Multiple: {metrics.get('revenue_multiple', 'N/A'):.2f}x")
-            print(f"Sector Average: {metrics.get('sector_average', 'N/A'):.2f}x")
-            print(f"Growth Rate: {metrics.get('growth_rate', 'N/A'):.1%}")
-            print(f"Current Revenue: ${metrics.get('current_revenue', 'N/A'):,.0f}")
-            
-            # Display recommendation
-            print(f"\nRecommendation: {analysis.get('recommendation', 'N/A')}")
-            
-        except Exception as e:
-            print(f"❌ Error testing {ticker}: {str(e)}")
-            
-        time.sleep(1)  # Rate limiting
-
-def test_technical_agent():
-    """
-    Tests the TechnicalAnalysisAgent's ability to:
-    1. Calculate moving averages and trends
-    2. Generate technical indicators (MACD, RSI, etc.)
-    3. Compare with price targets
-    4. Identify technical signals
-    
-    Expected outcomes:
-    - Should provide MA crossover signals
-    - Should calculate technical indicators
-    - Should identify overbought/oversold conditions
-    - Should generate actionable recommendations
-    """
-    print("\n=== Testing Technical Analysis Agent ===")
-    agent = TechnicalAnalysisAgent()
-    test_tickers = ['AAPL', 'MSFT']  # Liquid stocks for better technical analysis
-    
-    for ticker in test_tickers:
-        print(f"\nAnalyzing {ticker}...")
-        try:
-            analysis = agent.analyze(ticker)
+            # Log raw response for debugging
+            logging.debug(f"Raw analysis response: {json.dumps(analysis, indent=2)}")
             
             if "error" in analysis:
-                print(f"❌ Error analyzing {ticker}: {analysis['error']}")
+                logging.error(f"Analysis failed for {ticker}: {analysis['error']}")
                 continue
             
-            # Display moving averages
-            ma_data = analysis.get('moving_averages', {})
-            print("\nMoving Averages:")
-            print(f"MA75: ${ma_data.get('ma_75', 'N/A'):,.2f}")
-            print(f"MA200: ${ma_data.get('ma_200', 'N/A'):,.2f}")
+            # Log sector information
+            logging.info("\nSector Classification:")
+            logging.info(f"Sector: {analysis['sector_info']['sector']}")
+            logging.info(f"Industry: {analysis['sector_info']['industry']}")
             
-            # Display technical indicators
-            tech_data = analysis.get('technical_indicators', {})
-            print("\nTechnical Indicators:")
-            print(f"RSI: {tech_data.get('rsi', 'N/A'):.1f}")
-            print(f"MACD Histogram: {tech_data.get('macd', {}).get('histogram', 'N/A'):.3f}")
+            # Log valuation metrics
+            logging.info("\nValuation Metrics:")
+            metrics = analysis['valuation_metrics']
+            logging.info(f"Company P/S Multiple: {metrics['company_multiple']:.2f}x" if metrics['company_multiple'] else "Company Multiple: N/A")
+            logging.info(f"Sector Average: {metrics['sector_average']:.2f}x" if metrics['sector_average'] else "Sector Average: N/A")
+            logging.info(f"Market Cap: ${metrics['market_cap']:,.0f}")
+            logging.info(f"P/E Ratio: {metrics['pe_ratio']}")
             
-            # Display recommendation with signals
-            print(f"\nRecommendation: {analysis.get('recommendation', 'N/A')}")
+            # Log peer comparison
+            logging.info("\nPeer Analysis:")
+            peers = analysis['peer_comparison']
+            logging.info(f"Total Peers Analyzed: {peers['total_peers']}")
             
-        except Exception as e:
-            print(f"❌ Error testing {ticker}: {str(e)}")
+            if peers['peer_metrics']:
+                logging.info("\nTop 3 Peers by Market Cap:")
+                sorted_peers = sorted(peers['peer_metrics'], 
+                                   key=lambda x: x['market_cap'] if x['market_cap'] else 0, 
+                                   reverse=True)[:3]
+                for peer in sorted_peers:
+                    logging.info(f"\nPeer: {peer['symbol']}")
+                    logging.info(f"P/S Multiple: {peer['price_to_sales']:.2f}x" if peer['price_to_sales'] else "P/S Multiple: N/A")
+                    logging.info(f"Market Cap: ${peer['market_cap']:,.0f}" if peer['market_cap'] else "Market Cap: N/A")
             
-        time.sleep(1)  # Rate limiting
-
-def test_sector_metrics():
-    """
-    Tests the sector metrics analysis functionality:
-    1. Peer company identification
-    2. Revenue multiple calculations
-    3. Sector average calculations
-    
-    Expected outcomes:
-    - Should identify relevant peers
-    - Should calculate revenue multiples
-    - Should provide sector averages and rankings
-    """
-    print("\n=== Testing Sector Metrics Analysis ===")
-    test_tickers = ['AAPL', 'MSFT']  # Tech companies for comparison
-    
-    for ticker in test_tickers:
-        print(f"\nAnalyzing sector metrics for {ticker}...")
-        try:
-            metrics = analyze_sector_metrics(ticker)
-            
-            # Debug raw response
-            print("\nDEBUG - Raw metrics response:")
-            print(metrics)
-            
-            if "error" in metrics:
-                print(f"❌ Error: {metrics['error']}")
-                continue
-            
-            print(f"\nSector: {metrics.get('sector_name')}")
-            print(f"Industry: {metrics.get('industry')}")
-            
-            sector_metrics = metrics.get('sector_metrics', {})
-            print("\nRevenue Multiples:")
-            
-            # Safe formatting for potentially None values
-            company_multiple = sector_metrics.get('company_multiple')
-            avg_multiple = sector_metrics.get('avg_revenue_multiple')
-            median_multiple = sector_metrics.get('median_revenue_multiple')
-            
-            print(f"Company: {company_multiple:.2f}x" if company_multiple is not None else "Company: N/A")
-            print(f"Sector Average: {avg_multiple:.2f}x" if avg_multiple is not None else "Sector Average: N/A")
-            print(f"Sector Median: {median_multiple:.2f}x" if median_multiple is not None else "Sector Median: N/A")
-            
-            # Debug peer data
-            peer_metrics = metrics.get('peer_metrics', [])
-            print(f"\nPeers Analyzed: {metrics.get('total_peers_analyzed', 0)}")
-            if peer_metrics:
-                print("\nDEBUG - Peer Details:")
-                for peer in peer_metrics[:3]:  # Show first 3 peers for debug
-                    print(f"Symbol: {peer.get('symbol')}")
-                    print(f"Multiple: {peer.get('multiple', 'N/A'):.2f}x")
-                    print(f"Market Cap: ${peer.get('market_cap', 0):,.0f}")
-                    print(f"Revenue: ${peer.get('revenue', 0):,.0f}")
-                    print("---")
+            # Log recommendation
+            logging.info(f"\nRecommendation: {analysis['recommendation']}")
             
         except Exception as e:
-            print(f"❌ Error testing {ticker}: {str(e)}")
-            import traceback
-            print("Traceback:")
-            print(traceback.format_exc())
-            
+            logging.error(f"Error testing {ticker}: {str(e)}", exc_info=True)
+        
         time.sleep(1)  # Rate limiting
 
-if __name__ == "__main__":
-    print("Starting Agent Tests...\n")
+def test_api_connectivity():
+    """Tests basic API connectivity and response format."""
+    logging.info("\nTesting API Connectivity...")
     
     try:
-        # Test basic API connectivity first
-        print("Testing API connectivity...")
         test_response = make_fmp_request("/v3/stock/list?limit=1")
         if test_response:
-            print("✓ API connection successful")
-            print(f"Sample response: {test_response[:1]}")
+            logging.info("✓ API connection successful")
+            logging.debug(f"Sample response: {json.dumps(test_response[:1], indent=2)}")
+            return True
         else:
-            print("❌ API connection failed")
+            logging.error("❌ API connection failed")
+            return False
+    except Exception as e:
+        logging.error(f"API test failed: {str(e)}", exc_info=True)
+        return False
+
+if __name__ == "__main__":
+    logging.info("Starting Test Suite...")
+    
+    try:
+        # Test API connectivity first
+        if not test_api_connectivity():
+            logging.error("Aborting tests due to API connectivity failure")
             exit(1)
         
-        test_sector_metrics()
+        # Run tests
+        test_sector_analysis()
         
-        print("\nAll tests completed!")
+        logging.info("\nAll tests completed!")
         
     except KeyboardInterrupt:
-        print("\n\nTests interrupted by user")
+        logging.info("\nTests interrupted by user")
     except Exception as e:
-        print(f"\n❌ Unexpected error in test suite: {str(e)}")
-        import traceback
-        print("Traceback:")
-        print(traceback.format_exc())
+        logging.error(f"Unexpected error in test suite: {str(e)}", exc_info=True)

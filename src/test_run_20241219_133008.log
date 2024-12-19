@@ -1,0 +1,70 @@
+2024-12-19 13:30:08,581 - INFO - Starting Test Suite...
+2024-12-19 13:30:08,581 - INFO - 
+Testing API Connectivity...
+2024-12-19 13:30:12,910 - INFO - ✓ API connection successful
+2024-12-19 13:30:12,917 - INFO - 
+=== Testing Sector Analysis Agent ===
+2024-12-19 13:30:12,917 - INFO - 
+Analyzing AAPL...
+2024-12-19 13:30:39,343 - INFO - 
+Sector Classification:
+2024-12-19 13:30:39,343 - INFO - Sector: Technology
+2024-12-19 13:30:39,343 - INFO - Industry: Consumer Electronics
+2024-12-19 13:30:39,343 - INFO - 
+Valuation Metrics:
+2024-12-19 13:30:39,343 - INFO - Company P/S Multiple: 9.68x
+2024-12-19 13:30:39,343 - INFO - Sector Average: 5.99x
+2024-12-19 13:30:39,343 - INFO - Market Cap: $3,784,316,109,000
+2024-12-19 13:30:39,343 - INFO - P/E Ratio: 41.18
+2024-12-19 13:30:39,344 - INFO - 
+Peer Analysis:
+2024-12-19 13:30:39,344 - INFO - Total Peers Analyzed: 14
+2024-12-19 13:30:39,344 - INFO - 
+Top 3 Peers by Market Cap:
+2024-12-19 13:30:39,344 - INFO - 
+Peer: SNEJF
+2024-12-19 13:30:39,344 - INFO - P/S Multiple: 1.47x
+2024-12-19 13:30:39,344 - INFO - Market Cap: $126,075,951,187
+2024-12-19 13:30:39,344 - INFO - 
+Peer: SONY
+2024-12-19 13:30:39,344 - INFO - P/S Multiple: 1.47x
+2024-12-19 13:30:39,344 - INFO - Market Cap: $123,114,770,505
+2024-12-19 13:30:39,344 - INFO - 
+Peer: PCRFY
+2024-12-19 13:30:39,344 - INFO - P/S Multiple: 0.42x
+2024-12-19 13:30:39,344 - INFO - Market Cap: $21,849,329,848
+2024-12-19 13:30:39,344 - INFO - 
+Recommendation: UNDERWEIGHT - Significant valuation premium
+2024-12-19 13:30:40,345 - INFO - 
+Analyzing MSFT...
+2024-12-19 13:31:03,877 - INFO - 
+Sector Classification:
+2024-12-19 13:31:03,879 - INFO - Sector: Technology
+2024-12-19 13:31:03,879 - INFO - Industry: Software - Infrastructure
+2024-12-19 13:31:03,879 - INFO - 
+Valuation Metrics:
+2024-12-19 13:31:03,879 - INFO - Company P/S Multiple: 12.84x
+2024-12-19 13:31:03,879 - INFO - Sector Average: 16.13x
+2024-12-19 13:31:03,879 - INFO - Market Cap: $3,262,722,739,200
+2024-12-19 13:31:03,879 - INFO - P/E Ratio: 36.21
+2024-12-19 13:31:03,879 - INFO - 
+Peer Analysis:
+2024-12-19 13:31:03,879 - INFO - Total Peers Analyzed: 11
+2024-12-19 13:31:03,879 - INFO - 
+Top 3 Peers by Market Cap:
+2024-12-19 13:31:03,879 - INFO - 
+Peer: ORCL
+2024-12-19 13:31:03,879 - INFO - P/S Multiple: 8.63x
+2024-12-19 13:31:03,879 - INFO - Market Cap: $473,693,145,600
+2024-12-19 13:31:03,879 - INFO - 
+Peer: ADBE
+2024-12-19 13:31:03,879 - INFO - P/S Multiple: 9.04x
+2024-12-19 13:31:03,879 - INFO - Market Cap: $194,321,888,000
+2024-12-19 13:31:03,879 - INFO - 
+Peer: PLTR
+2024-12-19 13:31:03,879 - INFO - P/S Multiple: 64.81x
+2024-12-19 13:31:03,879 - INFO - Market Cap: $171,785,508,561
+2024-12-19 13:31:03,879 - INFO - 
+Recommendation: BUY - Significant valuation discount
+2024-12-19 13:31:04,884 - INFO - 
+All tests completed!

@@ -2280,3 +2280,112 @@ def analyze_growth_metrics(ticker: str, years: int = 5) -> Dict:
         }
     }
 
+def get_company_classification(ticker: str) -> Dict:
+    """Get company's sector and industry classification."""
+    profile = make_fmp_request(f"/v3/profile/{ticker}")
+    if not profile or not isinstance(profile, list):
+        return {"error": "Failed to get company profile"}
+    
+    company_details = profile[0]
+    return {
+        'sector': company_details.get('sector'),
+        'industry': company_details.get('industry'),
+        'company_name': company_details.get('companyName'),
+        'exchange': company_details.get('exchange')
+    }
+
+def get_peer_companies(ticker: str) -> Dict:
+    """Get list of peer companies and validate them."""
+    peers_data = make_fmp_request(f"/v4/stock_peers?symbol={ticker}")
+    if not peers_data or not isinstance(peers_data, list):
+        return {"error": "Failed to get peer companies"}
+        
+    peer_list = peers_data[0].get('peersList', []) if peers_data else []
+    if not peer_list:
+        return {"error": "No peers found for company"}
+    
+    return {
+        'peers': peer_list,
+        'total_peers': len(peer_list)
+    }
+
+def calculate_revenue_multiple(ticker: str) -> Dict:
+    """Calculate company's revenue multiple and related metrics."""
+    metrics = make_fmp_request(f"/v3/key-metrics-ttm/{ticker}")
+    quote = make_fmp_request(f"/v3/quote/{ticker}")
+    
+    if not metrics or not quote:
+        return {"error": "Failed to get company metrics"}
+    
+    return {
+        'price_to_sales': metrics[0].get('priceToSalesRatioTTM'),
+        'market_cap': quote[0].get('marketCap'),
+        'pe_ratio': quote[0].get('pe'),
+        'shares_outstanding': quote[0].get('sharesOutstanding')
+    }
+
+def analyze_peer_metrics(peer_list: List[str]) -> Dict:
+    """Analyze peer companies' metrics and calculate comparisons."""
+    peer_metrics = []
+    
+    for peer in peer_list:
+        metrics = make_fmp_request(f"/v3/key-metrics-ttm/{peer}")
+        quote = make_fmp_request(f"/v3/quote/{peer}")
+        
+        if metrics and quote:
+            peer_metrics.append({
+                'symbol': peer,
+                'price_to_sales': metrics[0].get('priceToSalesRatioTTM'),
+                'market_cap': quote[0].get('marketCap'),
+                'pe_ratio': quote[0].get('pe')
+            })
+        time.sleep(0.12)  # Rate limiting
+    
+    if not peer_metrics:
+        return {"error": "No valid peer metrics found"}
+    
+    multiples = [p['price_to_sales'] for p in peer_metrics if p['price_to_sales']]
+    
+    return {
+        'peer_metrics': peer_metrics,
+        'sector_average': sum(multiples) / len(multiples) if multiples else None,
+        'sector_median': sorted(multiples)[len(multiples)//2] if multiples else None,
+        'total_peers_analyzed': len(peer_metrics)
+    }
+
+def analyze_sector_metrics(ticker: str) -> Dict:
+    """Main function that coordinates sector analysis using helper functions."""
+    try:
+        # Get company classification
+        classification = get_company_classification(ticker)
+        if "error" in classification:
+            return classification
+            
+        # Get peer companies
+        peers = get_peer_companies(ticker)
+        if "error" in peers:
+            return peers
+            
+        # Get company metrics
+        company_metrics = calculate_revenue_multiple(ticker)
+        if "error" in company_metrics:
+            return company_metrics
+            
+        # Analyze peer metrics
+        peer_analysis = analyze_peer_metrics(peers['peers'])
+        if "error" in peer_analysis:
+            return peer_analysis
+        
+        # Combine all analyses
+        return {
+            'sector_name': classification['sector'],
+            'industry': classification['industry'],
+            'company_metrics': company_metrics,
+            'peer_analysis': peer_analysis,
+            'analysis_date': datetime.now().strftime('%Y-%m-%d')
+        }
+        
+    except Exception as e:
+        print(f"DEBUG - Sector analysis error: {str(e)}")
+        return {"error": f"Sector analysis failed: {str(e)}"}
+

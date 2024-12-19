@@ -1,0 +1,42 @@
+2024-12-19 13:33:13,264 - INFO - Starting Test Suite...
+2024-12-19 13:33:13,264 - INFO - 
+Testing API Connectivity...
+2024-12-19 13:33:16,517 - INFO - ✓ API connection successful
+2024-12-19 13:33:16,524 - INFO - 
+=== Testing Sector Analysis Agent ===
+2024-12-19 13:33:16,524 - INFO - 
+Analyzing APP...
+2024-12-19 13:33:44,132 - INFO - 
+Sector Classification:
+2024-12-19 13:33:44,133 - INFO - Sector: Technology
+2024-12-19 13:33:44,133 - INFO - Industry: Software - Application
+2024-12-19 13:33:44,133 - INFO - 
+Valuation Metrics:
+2024-12-19 13:33:44,133 - INFO - Company P/S Multiple: 25.11x
+2024-12-19 13:33:44,133 - INFO - Sector Average: 11.37x
+2024-12-19 13:33:44,133 - INFO - Market Cap: $107,696,821,275
+2024-12-19 13:33:44,133 - INFO - P/E Ratio: 97.84
+2024-12-19 13:33:44,133 - INFO - 
+Peer Analysis:
+2024-12-19 13:33:44,133 - INFO - Total Peers Analyzed: 14
+2024-12-19 13:33:44,133 - INFO - 
+Top 3 Peers by Market Cap:
+2024-12-19 13:33:44,133 - INFO - 
+Peer: INTU
+2024-12-19 13:33:44,134 - INFO - P/S Multiple: 10.84x
+2024-12-19 13:33:44,134 - INFO - Market Cap: $179,918,051,335
+2024-12-19 13:33:44,134 - INFO - 
+Peer: SHOP
+2024-12-19 13:33:44,134 - INFO - P/S Multiple: 16.91x
+2024-12-19 13:33:44,134 - INFO - Market Cap: $138,635,685,596
+2024-12-19 13:33:44,134 - INFO - 
+Peer: WDAY
+2024-12-19 13:33:44,134 - INFO - P/S Multiple: 8.76x
+2024-12-19 13:33:44,134 - INFO - Market Cap: $71,235,597,866
+2024-12-19 13:33:44,134 - INFO - 
+Recommendation: SELL - Significant valuation premium
+2024-12-19 13:33:45,137 - INFO - 
+Analyzing MSOS...
+2024-12-19 13:33:46,603 - ERROR - Analysis failed for MSOS: Sector analysis failed: Sector analysis failed: 0
+2024-12-19 13:33:46,603 - INFO - 
+All tests completed!

@@ -107,69 +107,109 @@ class SectorAnalysisAgent:
     def analyze(self, ticker: str) -> Dict:
         """
         Performs comprehensive sector analysis using multiple metrics.
+        
+        Returns:
+            Dict containing:
+            - Sector classification
+            - Revenue multiples (P/S ratio)
+            - Peer comparisons
+            - Growth metrics
+            - Recommendations
         """
         try:
-            # Get sector metrics
+            # Get sector analysis using our new modular functions
             sector_data = analyze_sector_metrics(ticker)
             if "error" in sector_data:
                 return {"error": f"Sector analysis failed: {sector_data['error']}"}
             
+            # Get growth metrics
+            growth_data = analyze_growth_metrics(ticker)
+            
             # Get margin trends
             margin_data = analyze_margin_trends(ticker)
             
-            # Get growth metrics
-            growth_data = analyze_growth_metrics(ticker)
+            # Extract key metrics for recommendation
+            company_multiple = sector_data['company_metrics']['price_to_sales']
+            sector_avg = sector_data['peer_analysis']['sector_average']
+            sector_median = sector_data['peer_analysis']['sector_median']
             
             return {
                 "analysis_type": "sector",
                 "sector_info": {
-                    "sector": sector_data.get('sector_name'),
-                    "industry": sector_data.get('industry'),
-                    "peer_count": len(sector_data.get('peer_metrics', []))
+                    "sector": sector_data['sector_name'],
+                    "industry": sector_data['industry']
                 },
-                "metrics": {
-                    "margins": margin_data.get('current_margins'),
-                    "margin_trends": margin_data.get('margin_trends'),
-                    "growth_metrics": growth_data,
-                    "sector_metrics": sector_data.get('sector_metrics'),
-                    "peer_comparison": sector_data.get('peer_metrics')
+                "valuation_metrics": {
+                    "company_multiple": company_multiple,
+                    "sector_average": sector_avg,
+                    "sector_median": sector_median,
+                    "market_cap": sector_data['company_metrics']['market_cap'],
+                    "pe_ratio": sector_data['company_metrics']['pe_ratio']
                 },
-                "recommendation": self._generate_sector_recommendation(
-                    margin_data=margin_data,
+                "peer_comparison": {
+                    "total_peers": sector_data['peer_analysis']['total_peers_analyzed'],
+                    "peer_metrics": sector_data['peer_analysis']['peer_metrics']
+                },
+                "growth_metrics": growth_data.get('growth_rates', {}),
+                "margin_analysis": margin_data.get('current_margins', {}),
+                "recommendation": self._generate_recommendation(
+                    company_multiple=company_multiple,
+                    sector_avg=sector_avg,
                     growth_data=growth_data,
-                    sector_data=sector_data
+                    margin_data=margin_data
                 )
             }
             
         except Exception as e:
             return {"error": f"Analysis failed: {str(e)}"}
     
-    def _generate_sector_recommendation(self, margin_data: Dict, growth_data: Dict, sector_data: Dict) -> str:
+    def _generate_recommendation(self, company_multiple: float, sector_avg: float,
+                               growth_data: Dict, margin_data: Dict) -> str:
         """Generate sector-based recommendation."""
         try:
-            # Score margins vs peers
-            margin_score = 0
-            if margin_data and 'peer_comparison' in margin_data:
-                peer_comp = margin_data['peer_comparison']
-                margin_score += 1 if peer_comp.get('operating_margin_percentile', 0) > 75 else -1
-                
-            # Score growth vs sector
-            growth_score = 0
-            if growth_data and not isinstance(growth_data, str):
-                revenue_growth = growth_data.get('revenue', [])
-                if revenue_growth and len(revenue_growth) > 0:
-                    growth_score += 1 if revenue_growth[0] > 0.1 else -1
+            score = 0
+            signals = []
             
-            total_score = margin_score + growth_score
+            # Score based on multiple vs sector
+            if company_multiple and sector_avg:
+                multiple_discount = (sector_avg - company_multiple) / sector_avg
+                if multiple_discount > 0.2:  # Trading at >20% discount
+                    score += 2
+                    signals.append("Significant valuation discount")
+                elif multiple_discount > 0.1:  # Trading at >10% discount
+                    score += 1
+                    signals.append("Moderate valuation discount")
+                elif multiple_discount < -0.2:  # Trading at >20% premium
+                    score -= 2
+                    signals.append("Significant valuation premium")
+                elif multiple_discount < -0.1:  # Trading at >10% premium
+                    score -= 1
+                    signals.append("Moderate valuation premium")
             
-            if total_score >= 1.5:
-                return "STRONG SECTOR POSITION - Above average margins and growth"
-            elif total_score > 0:
-                return "FAVORABLE SECTOR POSITION - Competitive in sector"
-            elif total_score < -1:
-                return "WEAK SECTOR POSITION - Below peer performance"
-            else:
-                return "NEUTRAL SECTOR POSITION - Average performance"
+            # Score growth metrics
+            recent_growth = growth_data.get('recent_yoy', {}).get('revenue')
+            if recent_growth:
+                if recent_growth > 0.2:  # >20% growth
+                    score += 2
+                    signals.append("Strong revenue growth")
+                elif recent_growth > 0.1:  # >10% growth
+                    score += 1
+                    signals.append("Moderate revenue growth")
+                elif recent_growth < 0:
+                    score -= 1
+                    signals.append("Negative revenue growth")
+            
+            # Generate final recommendation based on score
+            if score >= 3:
+                return f"STRONG BUY - {'; '.join(signals)}"
+            elif score >= 1:  # Changed from score > 0
+                return f"BUY - {'; '.join(signals)}"
+            elif score <= -3:  # Changed from score < -2
+                return f"STRONG SELL - {'; '.join(signals)}"
+            elif score <= -1:  # Changed from score < 0
+                return f"SELL - {'; '.join(signals)}"
+            else:  # Score is 0 or close to 0 (-1 < score < 1)
+                return f"HOLD - {'; '.join(signals)}"
                 
         except Exception as e:
             return f"Unable to generate recommendation: {str(e)}"

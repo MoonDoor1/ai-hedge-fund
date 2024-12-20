@@ -1,0 +1,136 @@
+2024-12-19 13:36:40,833 - INFO - Starting Test Suite...
+2024-12-19 13:36:40,833 - INFO - 
+Testing API Connectivity...
+2024-12-19 13:36:44,301 - INFO - ✓ API connection successful
+2024-12-19 13:36:44,309 - INFO - 
+=== Testing Sector Analysis Agent ===
+2024-12-19 13:36:44,309 - INFO - 
+Analyzing AAPL...
+2024-12-19 13:37:10,518 - INFO - 
+Sector Classification:
+2024-12-19 13:37:10,519 - INFO - Sector: Technology
+2024-12-19 13:37:10,519 - INFO - Industry: Consumer Electronics
+2024-12-19 13:37:10,519 - INFO - 
+Valuation Metrics:
+2024-12-19 13:37:10,519 - INFO - Company P/S Multiple: 9.67x
+2024-12-19 13:37:10,519 - INFO - Sector Average: 5.96x
+2024-12-19 13:37:10,519 - INFO - Market Cap: $3,773,054,838,000
+2024-12-19 13:37:10,519 - INFO - P/E Ratio: 41.05
+2024-12-19 13:37:10,519 - INFO - 
+Peer Analysis:
+2024-12-19 13:37:10,519 - INFO - Total Peers Analyzed: 14
+2024-12-19 13:37:10,519 - INFO - 
+Top 3 Peers by Market Cap:
+2024-12-19 13:37:10,519 - INFO - 
+Peer: SNEJF
+2024-12-19 13:37:10,519 - INFO - P/S Multiple: 1.47x
+2024-12-19 13:37:10,519 - INFO - Market Cap: $126,075,951,187
+2024-12-19 13:37:10,520 - INFO - 
+Peer: SONY
+2024-12-19 13:37:10,520 - INFO - P/S Multiple: 1.47x
+2024-12-19 13:37:10,520 - INFO - Market Cap: $122,778,488,750
+2024-12-19 13:37:10,520 - INFO - 
+Peer: PCRFY
+2024-12-19 13:37:10,520 - INFO - P/S Multiple: 0.42x
+2024-12-19 13:37:10,520 - INFO - Market Cap: $21,849,329,848
+2024-12-19 13:37:10,520 - INFO - 
+Recommendation: UNDERWEIGHT - Significant valuation premium
+2024-12-19 13:37:11,524 - INFO - 
+Analyzing MSFT...
+2024-12-19 13:37:34,691 - INFO - 
+Sector Classification:
+2024-12-19 13:37:34,691 - INFO - Sector: Technology
+2024-12-19 13:37:34,692 - INFO - Industry: Software - Infrastructure
+2024-12-19 13:37:34,692 - INFO - 
+Valuation Metrics:
+2024-12-19 13:37:34,692 - INFO - Company P/S Multiple: 12.82x
+2024-12-19 13:37:34,692 - INFO - Sector Average: 16.07x
+2024-12-19 13:37:34,692 - INFO - Market Cap: $3,254,470,022,400
+2024-12-19 13:37:34,692 - INFO - P/E Ratio: 36.12
+2024-12-19 13:37:34,692 - INFO - 
+Peer Analysis:
+2024-12-19 13:37:34,692 - INFO - Total Peers Analyzed: 11
+2024-12-19 13:37:34,692 - INFO - 
+Top 3 Peers by Market Cap:
+2024-12-19 13:37:34,692 - INFO - 
+Peer: ORCL
+2024-12-19 13:37:34,692 - INFO - P/S Multiple: 8.60x
+2024-12-19 13:37:34,692 - INFO - Market Cap: $472,546,392,000
+2024-12-19 13:37:34,692 - INFO - 
+Peer: ADBE
+2024-12-19 13:37:34,692 - INFO - P/S Multiple: 9.03x
+2024-12-19 13:37:34,692 - INFO - Market Cap: $193,881,688,000
+2024-12-19 13:37:34,692 - INFO - 
+Peer: PLTR
+2024-12-19 13:37:34,692 - INFO - P/S Multiple: 64.63x
+2024-12-19 13:37:34,692 - INFO - Market Cap: $170,327,575,588
+2024-12-19 13:37:34,693 - INFO - 
+Recommendation: BUY - Significant valuation discount
+2024-12-19 13:37:35,698 - INFO - 
+=== Testing Revenue Analysis Agent ===
+2024-12-19 13:37:35,698 - INFO - 
+Analyzing AAPL...
+2024-12-19 13:37:50,478 - INFO - 
+Core Metrics:
+2024-12-19 13:37:50,478 - INFO - Revenue Multiple: 9.66x
+2024-12-19 13:37:50,478 - INFO - Sector Average: N/A
+2024-12-19 13:37:50,478 - INFO - Market Cap: $3,775,926,840,000
+2024-12-19 13:37:50,478 - INFO - Current Revenue: $391,035,000,000
+2024-12-19 13:37:50,478 - INFO - Growth Rate: 2.0%
+2024-12-19 13:37:50,478 - INFO - Revenue Per Share: $25.87
+2024-12-19 13:37:50,478 - INFO - 
+Trading Analysis:
+2024-12-19 13:37:50,478 - INFO - Market Cap to Revenue Ratio: 9.66x
+2024-12-19 13:37:50,478 - INFO - × Trading above revenue
+2024-12-19 13:37:50,478 - INFO - 
+Recommendation: HOLD - Insufficient data
+2024-12-19 13:37:51,480 - INFO - 
+Analyzing WMT...
+2024-12-19 13:37:59,038 - INFO - 
+Core Metrics:
+2024-12-19 13:37:59,039 - INFO - Revenue Multiple: 1.16x
+2024-12-19 13:37:59,039 - INFO - Sector Average: N/A
+2024-12-19 13:37:59,039 - INFO - Market Cap: $752,447,474,350
+2024-12-19 13:37:59,039 - INFO - Current Revenue: $648,125,000,000
+2024-12-19 13:37:59,039 - INFO - Growth Rate: 6.0%
+2024-12-19 13:37:59,039 - INFO - Revenue Per Share: $80.68
+2024-12-19 13:37:59,039 - INFO - 
+Trading Analysis:
+2024-12-19 13:37:59,039 - INFO - Market Cap to Revenue Ratio: 1.16x
+2024-12-19 13:37:59,039 - INFO - × Trading above revenue
+2024-12-19 13:37:59,040 - INFO - 
+Recommendation: HOLD - Insufficient data
+2024-12-19 13:38:00,045 - INFO - 
+Analyzing AMD...
+2024-12-19 13:38:09,218 - INFO - 
+Core Metrics:
+2024-12-19 13:38:09,219 - INFO - Revenue Multiple: 8.52x
+2024-12-19 13:38:09,219 - INFO - Sector Average: N/A
+2024-12-19 13:38:09,219 - INFO - Market Cap: $193,244,214,800
+2024-12-19 13:38:09,219 - INFO - Current Revenue: $22,680,000,000
+2024-12-19 13:38:09,219 - INFO - Growth Rate: -3.9%
+2024-12-19 13:38:09,220 - INFO - Revenue Per Share: $13.98
+2024-12-19 13:38:09,220 - INFO - 
+Trading Analysis:
+2024-12-19 13:38:09,220 - INFO - Market Cap to Revenue Ratio: 8.52x
+2024-12-19 13:38:09,220 - INFO - × Trading above revenue
+2024-12-19 13:38:09,220 - INFO - 
+Recommendation: HOLD - Insufficient data
+2024-12-19 13:38:10,223 - INFO - 
+Analyzing KR...
+2024-12-19 13:38:21,325 - INFO - 
+Core Metrics:
+2024-12-19 13:38:21,325 - INFO - Revenue Multiple: 0.30x
+2024-12-19 13:38:21,325 - INFO - Sector Average: N/A
+2024-12-19 13:38:21,325 - INFO - Market Cap: $44,357,047,800
+2024-12-19 13:38:21,325 - INFO - Current Revenue: $150,039,000,000
+2024-12-19 13:38:21,325 - INFO - Growth Rate: 1.2%
+2024-12-19 13:38:21,325 - INFO - Revenue Per Share: $207.35
+2024-12-19 13:38:21,325 - INFO - 
+Trading Analysis:
+2024-12-19 13:38:21,325 - INFO - Market Cap to Revenue Ratio: 0.30x
+2024-12-19 13:38:21,325 - INFO - ✓ Trading below revenue
+2024-12-19 13:38:21,325 - INFO - 
+Recommendation: HOLD - Insufficient data
+2024-12-19 13:38:22,330 - INFO - 
+All tests completed!

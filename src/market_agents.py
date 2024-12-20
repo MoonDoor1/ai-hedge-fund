@@ -13,9 +13,22 @@ from src.tools import (
     calculate_obv,
     get_analyst_ratings,
     get_news_events,
-    analyze_volatility_events
+    analyze_volatility_events,
+    get_company_profile_detailed,
+    get_stock_screener,
+    get_enterprise_values,
+    get_financial_ratios_ttm,
+    get_key_metrics_ttm,
+    get_peer_companies
 )
 import pandas as pd
+import logging
+import time
+import json
+from openai import OpenAI
+import os
+
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 class RevenueAnalysisAgent:
     """Agent responsible for analyzing revenue metrics and identifying stocks trading below revenue."""
@@ -48,16 +61,15 @@ class RevenueAnalysisAgent:
             revenue_multiple = market_cap / current_revenue if current_revenue else None
             growth_rate = revenue_data.get('growth')
             
-            # Get sector comparison
-            sector_data = analyze_sector_metrics(ticker)
-            sector_avg_multiple = sector_data.get('sector_metrics', {}).get('avg_revenue_multiple')
-            
-            # Generate recommendation
-            recommendation = self._generate_recommendation(
-                revenue_multiple=revenue_multiple,
-                sector_avg=sector_avg_multiple,
-                growth_rate=growth_rate
-            )
+            # Get sector comparison with better error handling
+            try:
+                sector_data = analyze_sector_metrics(ticker)
+                sector_avg_multiple = (sector_data.get('sector_metrics', {}).get('avg_revenue_multiple') 
+                                     if not isinstance(sector_data, dict) or "error" not in sector_data 
+                                     else None)
+            except Exception as e:
+                logging.error(f"Sector analysis failed: {str(e)}")
+                sector_avg_multiple = None
             
             return {
                 "analysis_type": "revenue",
@@ -68,10 +80,14 @@ class RevenueAnalysisAgent:
                     "current_revenue": current_revenue,
                     "market_cap": market_cap,
                     "revenue_per_share": revenue_data.get('revenue_per_share'),
-                    "peer_comparison": sector_data.get('peer_metrics', [])
+                    "peer_comparison": sector_data.get('peer_metrics', []) if isinstance(sector_data, dict) else []
                 },
                 "historical_data": revenue_data.get('historical_data', []),
-                "recommendation": recommendation,
+                "recommendation": self._generate_recommendation(
+                    revenue_multiple=revenue_multiple,
+                    sector_avg=sector_avg_multiple,
+                    growth_rate=growth_rate
+                ),
                 "analysis_date": revenue_data.get('period_end')
             }
             
@@ -199,16 +215,16 @@ class SectorAnalysisAgent:
                     score -= 1
                     signals.append("Negative revenue growth")
             
-            # Generate final recommendation based on score
+            # Generate final recommendation
             if score >= 3:
                 return f"STRONG BUY - {'; '.join(signals)}"
-            elif score >= 1:  # Changed from score > 0
+            elif score > 0:
                 return f"BUY - {'; '.join(signals)}"
-            elif score <= -3:  # Changed from score < -2
-                return f"STRONG SELL - {'; '.join(signals)}"
-            elif score <= -1:  # Changed from score < 0
+            elif score < -2:
                 return f"SELL - {'; '.join(signals)}"
-            else:  # Score is 0 or close to 0 (-1 < score < 1)
+            elif score < 0:
+                return f"UNDERWEIGHT - {'; '.join(signals)}"
+            else:
                 return f"HOLD - {'; '.join(signals)}"
                 
         except Exception as e:
@@ -587,3 +603,313 @@ class PortfolioRecommendationAgent:
                 'signal_clustering': clustering_score
             }
         } 
+
+class PeerAnalysisAgent:
+    """Agent responsible for identifying and validating relevant peer companies."""
+    
+    def __init__(self):
+        self.llm = None  # We'll add LLM setup later
+        self.cache = {}  # Optional: Cache results to avoid repeat API calls
+        
+    def _get_initial_peers(self, ticker: str) -> Dict:
+        """Get initial peer list using multiple sources."""
+        try:
+            # Get direct peers from API
+            peers = get_peer_companies(ticker)
+            if "error" in peers:
+                return peers
+            
+            # Get company profile for context
+            company_profile = get_company_profile_detailed(ticker)
+            if not company_profile:
+                return {"error": "Failed to get company profile"}
+            
+            # Add major tech companies for large tech firms
+            tech_giants = ['MSFT', 'GOOGL', 'META', 'AMZN', 'NVDA']
+            if company_profile[0].get('mktCap', 0) > 100000000000:  # $100B+
+                peers['peers'] = list(set(peers['peers'] + tech_giants))
+            
+            # Add platform/ecosystem companies
+            platform_companies = ['NFLX', 'SPOT', 'ADBE', 'CRM', 'SHOP']
+            if 'software' in company_profile[0].get('sector', '').lower():
+                peers['peers'] = list(set(peers['peers'] + platform_companies))
+            
+            return {
+                'base_company': company_profile[0],
+                'peers': peers['peers'],
+                'total_peers': len(peers['peers'])
+            }
+            
+        except Exception as e:
+            return {"error": f"Peer retrieval failed: {str(e)}"}
+
+    def _enrich_peer_data(self, ticker: str, peer_candidates: List[str]) -> Dict:
+        """
+        Gather detailed metrics for each peer candidate.
+        
+        Args:
+            ticker: Base company ticker
+            peer_candidates: List of potential peer tickers
+            
+        Returns:
+            Dict containing enriched data for base company and peers
+        """
+        try:
+            enriched_data = {
+                'base_company': {},
+                'peers': []
+            }
+            
+            # Get base company metrics first
+            base_metrics = {
+                'profile': get_company_profile_detailed(ticker),
+                'enterprise': get_enterprise_values(ticker),
+                'ratios': get_financial_ratios_ttm(ticker),
+                'metrics': get_key_metrics_ttm(ticker)
+            }
+            
+            if all(base_metrics.values()):
+                enriched_data['base_company'] = {
+                    'ticker': ticker,
+                    'description': base_metrics['profile'][0].get('description', ''),
+                    'business_model': base_metrics['profile'][0].get('description', ''),
+                    'market_cap': base_metrics['profile'][0].get('mktCap'),
+                    'revenue': base_metrics['metrics'][0].get('revenuePerShareTTM', 0) * 
+                              base_metrics['profile'][0].get('sharesOutstanding', 0),
+                    'margins': {
+                        'gross': base_metrics['ratios'][0].get('grossProfitMarginTTM'),
+                        'operating': base_metrics['ratios'][0].get('operatingProfitMarginTTM'),
+                        'net': base_metrics['ratios'][0].get('netProfitMarginTTM')
+                    },
+                    'growth': {
+                        'revenue': base_metrics['metrics'][0].get('revenueGrowthTTM'),
+                        'earnings': base_metrics['metrics'][0].get('epsgrowthTTM')
+                    },
+                    'multiples': {
+                        'ev_revenue': base_metrics['enterprise'][0].get('enterpriseValueMultipleTTM'),
+                        'pe': base_metrics['ratios'][0].get('peRatioTTM'),
+                        'ps': base_metrics['ratios'][0].get('priceToSalesRatioTTM')
+                    }
+                }
+            
+            # Get peer metrics
+            for peer in peer_candidates:
+                try:
+                    peer_metrics = {
+                        'profile': get_company_profile_detailed(peer),
+                        'enterprise': get_enterprise_values(peer),
+                        'ratios': get_financial_ratios_ttm(peer),
+                        'metrics': get_key_metrics_ttm(peer)
+                    }
+                    
+                    if all(peer_metrics.values()):
+                        enriched_data['peers'].append({
+                            'ticker': peer,
+                            'description': peer_metrics['profile'][0].get('description', ''),
+                            'business_model': peer_metrics['profile'][0].get('description', ''),
+                            'market_cap': peer_metrics['profile'][0].get('mktCap'),
+                            'revenue': peer_metrics['metrics'][0].get('revenuePerShareTTM', 0) * 
+                                     peer_metrics['profile'][0].get('sharesOutstanding', 0),
+                            'margins': {
+                                'gross': peer_metrics['ratios'][0].get('grossProfitMarginTTM'),
+                                'operating': peer_metrics['ratios'][0].get('operatingProfitMarginTTM'),
+                                'net': peer_metrics['ratios'][0].get('netProfitMarginTTM')
+                            },
+                            'growth': {
+                                'revenue': peer_metrics['metrics'][0].get('revenueGrowthTTM'),
+                                'earnings': peer_metrics['metrics'][0].get('epsgrowthTTM')
+                            },
+                            'multiples': {
+                                'ev_revenue': peer_metrics['enterprise'][0].get('enterpriseValueMultipleTTM'),
+                                'pe': peer_metrics['ratios'][0].get('peRatioTTM'),
+                                'ps': peer_metrics['ratios'][0].get('priceToSalesRatioTTM')
+                            }
+                        })
+                    time.sleep(0.12)  # Rate limiting
+                    
+                except Exception as e:
+                    logging.error(f"Failed to enrich peer {peer}: {str(e)}")
+                    continue
+            
+            return enriched_data
+            
+        except Exception as e:
+            return {"error": f"Data enrichment failed: {str(e)}"}
+
+    def _validate_peers_with_llm(self, base_company: Dict, peer_tickers: List[str]) -> Dict:
+        """Use LLM to validate and select most relevant peers."""
+        try:
+            # Get company profiles for all peers
+            peer_profiles = []
+            for ticker in peer_tickers:
+                profile = get_company_profile_detailed(ticker)
+                if profile and len(profile) > 0:
+                    peer_profiles.append({
+                        'ticker': ticker,
+                        'description': profile[0].get('description', ''),
+                        'market_cap': profile[0].get('mktCap', 0)
+                    })
+                time.sleep(0.12)  # Rate limiting
+            
+            # Construct the prompt
+            prompt = f"""
+            You are a professional equity analyst specializing in competitive analysis. 
+            Given the following company and a list of potential peers, identify and rank the top 5 most similar companies.
+
+            Evaluate similarity based on:
+            - Core business model
+            - Revenue sources
+            - Market position
+            - Competitive overlap
+
+            Target Company:
+            {base_company['symbol']}
+            {base_company['description']}
+            Market Cap: ${base_company['mktCap']:,.0f}
+
+            Potential Peers:
+            {json.dumps(peer_profiles, indent=2)}
+
+            Instructions:
+            1. Select the 5 most similar companies
+            2. Score each on a scale of 0-1 (1 being most similar)
+            3. Explain key similarities and differences
+            4. Focus on business fundamentals, not just industry classification
+
+            Return ONLY a JSON response with this exact structure:
+            {{
+                "selected_peers": [
+                    {{
+                        "ticker": "symbol",
+                        "relevance_score": float (0-1),
+                        "reasoning": "clear explanation of similarity and differences"
+                    }}
+                ],
+                "analysis_summary": "brief overview of the peer group selection logic"
+            }}
+            """
+
+            # Call GPT-4
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a financial analyst specializing in peer company analysis. You must respond with valid JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2
+            )
+
+            # Parse the response
+            try:
+                result = json.loads(response.choices[0].message.content)
+                return result
+            except json.JSONDecodeError:
+                return {"error": "Failed to parse LLM response"}
+
+        except Exception as e:
+            return {"error": f"LLM validation failed: {str(e)}"}
+
+    def analyze_peers(self, ticker: str) -> Dict:
+        """Complete peer analysis pipeline."""
+        try:
+            logging.info(f"\nStarting peer analysis for {ticker}")
+            
+            # 1. Get initial peers
+            logging.info("\n1. Getting initial peers...")
+            initial_results = self._get_initial_peers(ticker)
+            if "error" in initial_results:
+                logging.error(f"Failed to get initial peers: {initial_results['error']}")
+                return initial_results
+            
+            logging.info(f"Found {initial_results['total_peers']} initial peers: {initial_results['peers']}")
+            
+            # 2. Filter with LLM
+            logging.info("\n2. Validating peers with LLM...")
+            validated_peers = self._validate_peers_with_llm(
+                initial_results['base_company'],
+                initial_results['peers']
+            )
+            if "error" in validated_peers:
+                logging.error(f"LLM validation failed: {validated_peers['error']}")
+                return validated_peers
+            
+            # 3. Get selected peer tickers
+            selected_tickers = [peer['ticker'] for peer in validated_peers['selected_peers']]
+            logging.info(f"LLM selected peers: {selected_tickers}")
+            
+            # 4. Enrich the filtered peer data
+            logging.info("\n3. Enriching peer data...")
+            enriched_data = self._enrich_peer_data(ticker, selected_tickers)
+            if "error" in enriched_data:
+                logging.error(f"Data enrichment failed: {enriched_data['error']}")
+                return enriched_data
+            
+            logging.info(f"Enriched data received for {len(enriched_data['peers'])} peers")
+            
+            # 5. Calculate metrics summary with error handling
+            logging.info("\n4. Calculating metrics summary...")
+            try:
+                # Log raw data for debugging
+                logging.info("Checking peer data validity...")
+                for peer in enriched_data['peers']:
+                    logging.info(f"\nValidating data for {peer['ticker']}:")
+                    logging.info(f"Market Cap: {peer.get('market_cap')}")
+                    logging.info(f"Margins: {peer.get('margins')}")
+                    logging.info(f"Multiples: {peer.get('multiples')}")
+                
+                valid_peers = [p for p in enriched_data['peers'] if all([
+                    # Required metrics
+                    p.get('market_cap'),
+                    p.get('margins', {}).get('gross') is not None,
+                    p.get('margins', {}).get('operating') is not None,
+                    p.get('margins', {}).get('net') is not None,
+                    # Optional metrics (remove from validation)
+                    # p.get('multiples', {}).get('ev_revenue'),
+                    p.get('multiples', {}).get('pe') is not None,
+                    p.get('multiples', {}).get('ps') is not None
+                ])]
+                
+                logging.info(f"\nFound {len(valid_peers)} valid peers out of {len(enriched_data['peers'])} total")
+                
+                if not valid_peers:
+                    logging.error("No peers had complete metrics")
+                    return {"error": "No valid peer data available for comparison"}
+                    
+                metrics_summary = {
+                    'avg_market_cap': sum(p['market_cap'] for p in valid_peers) / len(valid_peers),
+                    'avg_margins': {
+                        'gross': sum(p['margins']['gross'] for p in valid_peers) / len(valid_peers),
+                        'operating': sum(p['margins']['operating'] for p in valid_peers) / len(valid_peers),
+                        'net': sum(p['margins']['net'] for p in valid_peers) / len(valid_peers)
+                    },
+                    'avg_multiples': {
+                        'pe': sum(p['multiples']['pe'] for p in valid_peers) / len(valid_peers),
+                        'ps': sum(p['multiples']['ps'] for p in valid_peers) / len(valid_peers)
+                    }
+                }
+                logging.info("Successfully calculated metrics summary")
+                
+            except Exception as e:
+                logging.error(f"Failed to calculate metrics: {str(e)}")
+                metrics_summary = {"error": f"Failed to calculate metrics: {str(e)}"}
+            
+            # 6. Return combined analysis
+            logging.info("\n5. Combining final analysis...")
+            return {
+                'base_company': enriched_data['base_company'],
+                'peer_analysis': {
+                    'selected_peers': [
+                        {
+                            **next((p for p in validated_peers['selected_peers'] if p['ticker'] == peer['ticker']), {}),
+                            **peer
+                        }
+                        for peer in enriched_data['peers']
+                    ],
+                    'analysis_summary': validated_peers['analysis_summary'],
+                    'metrics_summary': metrics_summary
+                }
+            }
+            
+        except Exception as e:
+            logging.error(f"Peer analysis failed: {str(e)}")
+            return {"error": f"Peer analysis failed: {str(e)}"}

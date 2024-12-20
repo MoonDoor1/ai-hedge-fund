@@ -1,0 +1,43 @@
+2024-12-19 15:20:31,538 - INFO - Starting Component Tests...
+2024-12-19 15:20:31,538 - INFO - 
+=== Testing Peer Analysis for AAPL ===
+2024-12-19 15:20:31,538 - INFO - 
+1. Testing Initial Peer List:
+2024-12-19 15:20:32,333 - INFO - 
+Found 14 initial peers
+2024-12-19 15:20:32,334 - INFO - 
+Initial Peer List:
+2024-12-19 15:20:32,334 - INFO - [
+  "LPL",
+  "SNEJF",
+  "PCRFY",
+  "SONO",
+  "VZIO",
+  "MICS",
+  "WLDSW",
+  "KOSS",
+  "GPRO",
+  "SONY",
+  "UEIC",
+  "HEAR",
+  "VUZI",
+  "WLDS"
+]
+2024-12-19 15:20:32,334 - INFO - 
+2. Testing Peer Data Enrichment:
+2024-12-19 15:20:42,130 - INFO - 
+Enriched Data Sample:
+2024-12-19 15:20:42,130 - INFO - {
+  "base_company": {
+    "ticker": "AAPL",
+    "market_cap": 3775775682000,
+    "revenue": 0.0
+  },
+  "peer_count": 5
+}
+2024-12-19 15:20:42,130 - INFO - 
+3. Testing LLM Peer Validation:
+2024-12-19 15:20:42,130 - ERROR - LLM validation failed: LLM validation failed: Invalid format specifier ' "symbol",
+                        "relevance_score": float (0-1),
+                        "reasoning": "explanation"
+                    ' for object of type 'str'

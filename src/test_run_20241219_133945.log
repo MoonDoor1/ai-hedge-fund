@@ -1,0 +1,26 @@
+2024-12-19 13:39:45,206 - INFO - Starting Test Suite...
+2024-12-19 13:39:45,206 - INFO - 
+Testing API Connectivity...
+2024-12-19 13:39:48,716 - INFO - ✓ API connection successful
+2024-12-19 13:39:48,723 - INFO - 
+=== Testing Revenue Analysis Agent ===
+2024-12-19 13:39:48,723 - INFO - 
+Analyzing AAPL...
+2024-12-19 13:40:04,355 - INFO - 
+Core Metrics:
+2024-12-19 13:40:04,355 - INFO - Revenue Multiple: 9.68x
+2024-12-19 13:40:04,355 - INFO - Sector Average: N/A (sector analysis unavailable)
+2024-12-19 13:40:04,355 - INFO - Market Cap: $3,785,752,110,000
+2024-12-19 13:40:04,355 - INFO - Current Revenue: $391,035,000,000
+2024-12-19 13:40:04,355 - INFO - Growth Rate: 2.0%
+2024-12-19 13:40:04,355 - INFO - Revenue Per Share: $25.87
+2024-12-19 13:40:04,355 - INFO - 
+Trading Analysis:
+2024-12-19 13:40:04,355 - INFO - Market Cap to Revenue Ratio: 9.68x
+2024-12-19 13:40:04,356 - INFO - × Trading above revenue
+2024-12-19 13:40:04,356 - INFO - 
+Recommendation: HOLD - Insufficient data
+2024-12-19 13:40:05,356 - INFO - 
+Analyzing WMT...
+2024-12-19 13:40:12,664 - INFO - 
+Tests interrupted by user

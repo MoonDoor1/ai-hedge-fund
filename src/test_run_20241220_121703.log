@@ -1,0 +1,168 @@
+2024-12-20 12:17:03,176 - INFO - Starting Peer Analysis Test...
+2024-12-20 12:17:03,177 - INFO - 
+=== Testing Complete Peer Analysis for AAPL ===
+2024-12-20 12:17:03,177 - INFO - 
+Starting peer analysis for AAPL
+2024-12-20 12:17:03,177 - INFO - 
+1. Getting initial peers...
+2024-12-20 12:17:04,094 - INFO - Found 19 initial peers: ['PCRFY', 'KOSS', 'VZIO', 'WLDSW', 'AMZN', 'VUZI', 'LPL', 'WLDS', 'GOOGL', 'UEIC', 'SONO', 'META', 'HEAR', 'SONY', 'MICS', 'SNEJF', 'NVDA', 'GPRO', 'MSFT']
+2024-12-20 12:17:04,094 - INFO - 
+2. Validating peers with LLM...
+2024-12-20 12:17:40,290 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-12-20 12:17:40,299 - INFO - LLM selected peers: ['AMZN', 'GOOGL', 'MSFT', 'SONY', 'NVDA']
+2024-12-20 12:17:40,299 - INFO - 
+3. Enriching peer data...
+2024-12-20 12:17:50,729 - INFO - Enriched data received for 5 peers
+2024-12-20 12:17:50,730 - INFO - 
+4. Calculating metrics summary...
+2024-12-20 12:17:50,730 - INFO - Checking peer data validity...
+2024-12-20 12:17:50,730 - INFO - 
+Validating data for AMZN:
+2024-12-20 12:17:50,730 - INFO - Market Cap: 2361879300000
+2024-12-20 12:17:50,730 - INFO - Margins: {'gross': 0.4840613550750813, 'operating': 0.0977201480984571, 'net': 0.08041565612260694}
+2024-12-20 12:17:50,730 - INFO - Multiples: {'ev_revenue': None, 'pe': 47.26782945576321, 'ps': 3.8061411345722176}
+2024-12-20 12:17:50,730 - INFO - 
+Validating data for GOOGL:
+2024-12-20 12:17:50,730 - INFO - Market Cap: 2351642977383
+2024-12-20 12:17:50,730 - INFO - Margins: {'gross': 0.5791394968868216, 'operating': 0.30944845960227857, 'net': 0.2775188777838291}
+2024-12-20 12:17:50,730 - INFO - Multiples: {'ev_revenue': None, 'pe': 24.97007181576128, 'ps': 6.921735245633454}
+2024-12-20 12:17:50,731 - INFO - 
+Validating data for MSFT:
+2024-12-20 12:17:50,731 - INFO - Market Cap: 3259153996800
+2024-12-20 12:17:50,731 - INFO - Margins: {'gross': 0.6934930563751525, 'operating': 0.44490341870254535, 'net': 0.35608009756481374}
+2024-12-20 12:17:50,731 - INFO - Multiples: {'ev_revenue': None, 'pe': 36.007494531111895, 'ps': 12.824795071403281}
+2024-12-20 12:17:50,731 - INFO - 
+Validating data for SONY:
+2024-12-20 12:17:50,731 - INFO - Market Cap: 125303572598
+2024-12-20 12:17:50,731 - INFO - Margins: {'gross': 0.2912356619890293, 'operating': 0.10701277425331508, 'net': 0.08543125647025246}
+2024-12-20 12:17:50,731 - INFO - Multiples: {'ev_revenue': None, 'pe': 17.696206408045185, 'ps': 1.4842430256556896}
+2024-12-20 12:17:50,731 - INFO - 
+Validating data for NVDA:
+2024-12-20 12:17:50,731 - INFO - Market Cap: 3292925400000
+2024-12-20 12:17:50,731 - INFO - Margins: {'gross': 0.758610034519595, 'operating': 0.6271265747909843, 'net': 0.5568513891709117}
+2024-12-20 12:17:50,731 - INFO - Multiples: {'ev_revenue': None, 'pe': 52.242602260836485, 'ps': 29.040376007557228}
+2024-12-20 12:17:50,731 - INFO - 
+Found 5 valid peers out of 5 total
+2024-12-20 12:17:50,731 - INFO - Successfully calculated metrics summary
+2024-12-20 12:17:50,731 - INFO - 
+5. Combining final analysis...
+2024-12-20 12:17:50,732 - INFO - 
+Base Company Analysis:
+2024-12-20 12:17:50,732 - INFO - {
+  "ticker": "AAPL",
+  "market_cap": 3823541610000,
+  "margins": {
+    "gross": 0.4620634981523393,
+    "operating": 0.31510222870075566,
+    "net": 0.23971255769943867
+  },
+  "multiples": {
+    "ev_revenue": null,
+    "pe": 40.91141282324827,
+    "ps": 9.770658912885036
+  }
+}
+2024-12-20 12:17:50,732 - INFO - 
+Selected Peers:
+2024-12-20 12:17:50,732 - INFO - 
+AMZN (Relevance: 0.90)
+2024-12-20 12:17:50,732 - INFO - Reasoning: Both Apple and Amazon are tech giants with diverse product offerings, including hardware, software, and services. They both have significant market presence in consumer electronics and digital content distribution. However, Amazon has a more significant presence in e-commerce and cloud services.
+2024-12-20 12:17:50,732 - INFO - Key Metrics:
+2024-12-20 12:17:50,732 - INFO - {
+  "market_cap": 2361879300000,
+  "margins": {
+    "gross": 0.4840613550750813,
+    "operating": 0.0977201480984571,
+    "net": 0.08041565612260694
+  },
+  "multiples": {
+    "ev_revenue": null,
+    "pe": 47.26782945576321,
+    "ps": 3.8061411345722176
+  }
+}
+2024-12-20 12:17:50,732 - INFO - 
+GOOGL (Relevance: 0.85)
+2024-12-20 12:17:50,732 - INFO - Reasoning: Google, like Apple, is a dominant player in the tech industry. Both companies offer hardware products, software, and services, and have a significant presence in the digital content and advertising markets. However, Google's core business is more focused on search and advertising, while Apple's is more hardware-centric.
+2024-12-20 12:17:50,732 - INFO - Key Metrics:
+2024-12-20 12:17:50,733 - INFO - {
+  "market_cap": 2351642977383,
+  "margins": {
+    "gross": 0.5791394968868216,
+    "operating": 0.30944845960227857,
+    "net": 0.2775188777838291
+  },
+  "multiples": {
+    "ev_revenue": null,
+    "pe": 24.97007181576128,
+    "ps": 6.921735245633454
+  }
+}
+2024-12-20 12:17:50,733 - INFO - 
+MSFT (Relevance: 0.80)
+2024-12-20 12:17:50,733 - INFO - Reasoning: Microsoft and Apple are both major players in the tech industry, offering a range of hardware and software products. Both companies have a significant presence in the personal computing market. However, Microsoft has a stronger focus on enterprise software and cloud services.
+2024-12-20 12:17:50,733 - INFO - Key Metrics:
+2024-12-20 12:17:50,733 - INFO - {
+  "market_cap": 3259153996800,
+  "margins": {
+    "gross": 0.6934930563751525,
+    "operating": 0.44490341870254535,
+    "net": 0.35608009756481374
+  },
+  "multiples": {
+    "ev_revenue": null,
+    "pe": 36.007494531111895,
+    "ps": 12.824795071403281
+  }
+}
+2024-12-20 12:17:50,733 - INFO - 
+SONY (Relevance: 0.75)
+2024-12-20 12:17:50,733 - INFO - Reasoning: Sony and Apple both have a significant presence in the consumer electronics market, offering products such as smartphones, personal computers, and televisions. However, Sony's business is more diversified, with significant segments in entertainment and gaming.
+2024-12-20 12:17:50,733 - INFO - Key Metrics:
+2024-12-20 12:17:50,733 - INFO - {
+  "market_cap": 125303572598,
+  "margins": {
+    "gross": 0.2912356619890293,
+    "operating": 0.10701277425331508,
+    "net": 0.08543125647025246
+  },
+  "multiples": {
+    "ev_revenue": null,
+    "pe": 17.696206408045185,
+    "ps": 1.4842430256556896
+  }
+}
+2024-12-20 12:17:50,733 - INFO - 
+NVDA (Relevance: 0.70)
+2024-12-20 12:17:50,733 - INFO - Reasoning: NVIDIA and Apple are both leaders in the tech industry, with a focus on hardware and software integration. Both companies are known for their innovation in the field of graphics processing. However, NVIDIA's business is more focused on GPUs and AI, while Apple's product portfolio is more diverse.
+2024-12-20 12:17:50,733 - INFO - Key Metrics:
+2024-12-20 12:17:50,733 - INFO - {
+  "market_cap": 3292925400000,
+  "margins": {
+    "gross": 0.758610034519595,
+    "operating": 0.6271265747909843,
+    "net": 0.5568513891709117
+  },
+  "multiples": {
+    "ev_revenue": null,
+    "pe": 52.242602260836485,
+    "ps": 29.040376007557228
+  }
+}
+2024-12-20 12:17:50,733 - INFO - 
+Peer Group Summary:
+2024-12-20 12:17:50,734 - INFO - {
+  "avg_market_cap": 2278181049356.2,
+  "avg_margins": {
+    "gross": 0.561307920969136,
+    "operating": 0.3172422750895161,
+    "net": 0.2712594554224828
+  },
+  "avg_multiples": {
+    "pe": 35.63684089430361,
+    "ps": 10.815458096964374
+  }
+}
+2024-12-20 12:17:50,734 - INFO - 
+Analysis Summary:
+2024-12-20 12:17:50,734 - INFO - The selected peer companies are all major players in the tech industry, with diverse product offerings that include hardware, software, and services. They were selected based on their similarities with Apple in terms of product portfolio, market presence, and business model. However, each company also has unique aspects that differentiate it from Apple.

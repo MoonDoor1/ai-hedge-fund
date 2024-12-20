@@ -1,0 +1,168 @@
+2024-12-19 17:17:02,274 - INFO - Starting Peer Analysis Test...
+2024-12-19 17:17:02,275 - INFO - 
+=== Testing Complete Peer Analysis for AAPL ===
+2024-12-19 17:17:02,275 - INFO - 
+Starting peer analysis for AAPL
+2024-12-19 17:17:02,275 - INFO - 
+1. Getting initial peers...
+2024-12-19 17:17:03,054 - INFO - Found 14 initial peers: ['LPL', 'SNEJF', 'PCRFY', 'SONO', 'VZIO', 'MICS', 'WLDSW', 'KOSS', 'GPRO', 'SONY', 'UEIC', 'HEAR', 'VUZI', 'WLDS']
+2024-12-19 17:17:03,054 - INFO - 
+2. Validating peers with LLM...
+2024-12-19 17:17:33,859 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-12-19 17:17:33,867 - INFO - LLM selected peers: ['SNEJF', 'SONY', 'PCRFY', 'GPRO', 'VZIO']
+2024-12-19 17:17:33,867 - INFO - 
+3. Enriching peer data...
+2024-12-19 17:17:44,521 - INFO - Enriched data received for 5 peers
+2024-12-19 17:17:44,522 - INFO - 
+4. Calculating metrics summary...
+2024-12-19 17:17:44,522 - INFO - Checking peer data validity...
+2024-12-19 17:17:44,522 - INFO - 
+Validating data for SNEJF:
+2024-12-19 17:17:44,522 - INFO - Market Cap: 126075951187
+2024-12-19 17:17:44,522 - INFO - Margins: {'gross': 0.2912356619890293, 'operating': 0.10701277425331508, 'net': 0.08543125647025246}
+2024-12-19 17:17:44,522 - INFO - Multiples: {'ev_revenue': None, 'pe': 17.566879686427313, 'ps': 1.4733959389882911}
+2024-12-19 17:17:44,523 - INFO - 
+Validating data for SONY:
+2024-12-19 17:17:44,523 - INFO - Market Cap: 122748781882
+2024-12-19 17:17:44,523 - INFO - Margins: {'gross': 0.2912356619890293, 'operating': 0.10701277425331508, 'net': 0.08543125647025246}
+2024-12-19 17:17:44,523 - INFO - Multiples: {'ev_revenue': None, 'pe': 17.566879686427313, 'ps': 1.4733959389882911}
+2024-12-19 17:17:44,523 - INFO - 
+Validating data for PCRFY:
+2024-12-19 17:17:44,523 - INFO - Market Cap: 21849329848
+2024-12-19 17:17:44,523 - INFO - Margins: {'gross': 0.29895474268066063, 'operating': 0.047340810583212975, 'net': 0.0399295064407776}
+2024-12-19 17:17:44,523 - INFO - Multiples: {'ev_revenue': None, 'pe': 10.61907418385947, 'ps': 0.4241261422848239}
+2024-12-19 17:17:44,523 - INFO - 
+Validating data for GPRO:
+2024-12-19 17:17:44,523 - INFO - Market Cap: 173139317
+2024-12-19 17:17:44,523 - INFO - Margins: {'gross': 0.3400237273872754, 'operating': -0.11008235389967311, 'net': -0.4436753566641481}
+2024-12-19 17:17:44,523 - INFO - Multiples: {'ev_revenue': None, 'pe': -0.4254061246975132, 'ps': 0.1932334725801357}
+2024-12-19 17:17:44,524 - INFO - 
+Validating data for VZIO:
+2024-12-19 17:17:44,524 - INFO - Market Cap: 2298431739
+2024-12-19 17:17:44,524 - INFO - Margins: {'gross': 0.22093758987633016, 'operating': -0.013517400057520852, 'net': 0.0010353753235547887}
+2024-12-19 17:17:44,524 - INFO - Multiples: {'ev_revenue': None, 'pe': 1271.2, 'ps': 1.3220775030198446}
+2024-12-19 17:17:44,524 - INFO - 
+Found 5 valid peers out of 5 total
+2024-12-19 17:17:44,524 - INFO - Successfully calculated metrics summary
+2024-12-19 17:17:44,524 - INFO - 
+5. Combining final analysis...
+2024-12-19 17:17:44,524 - INFO - 
+Base Company Analysis:
+2024-12-19 17:17:44,524 - INFO - {
+  "ticker": "AAPL",
+  "market_cap": 3775775682000,
+  "margins": {
+    "gross": 0.4620634981523393,
+    "operating": 0.31510222870075566,
+    "net": 0.23971255769943867
+  },
+  "multiples": {
+    "ev_revenue": null,
+    "pe": 40.43069239246394,
+    "ps": 9.655850964747401
+  }
+}
+2024-12-19 17:17:44,524 - INFO - 
+Selected Peers:
+2024-12-19 17:17:44,524 - INFO - 
+SNEJF (Relevance: 0.90)
+2024-12-19 17:17:44,525 - INFO - Reasoning: Sony Group Corporation is a major player in the consumer electronics and entertainment industry, similar to Apple. They both produce and sell electronic devices, and offer digital content and services. However, Sony has a broader product portfolio and is more involved in the entertainment industry.
+2024-12-19 17:17:44,525 - INFO - Key Metrics:
+2024-12-19 17:17:44,525 - INFO - {
+  "market_cap": 126075951187,
+  "margins": {
+    "gross": 0.2912356619890293,
+    "operating": 0.10701277425331508,
+    "net": 0.08543125647025246
+  },
+  "multiples": {
+    "ev_revenue": null,
+    "pe": 17.566879686427313,
+    "ps": 1.4733959389882911
+  }
+}
+2024-12-19 17:17:44,525 - INFO - 
+SONY (Relevance: 0.90)
+2024-12-19 17:17:44,525 - INFO - Reasoning: Sony Group Corporation, like Apple, designs, develops, produces, and sells electronic equipment, instruments, and devices for the consumer, professional, and industrial markets. They both distribute software titles and add-on content through digital networks. However, Sony has a broader product portfolio and is more involved in the entertainment industry.
+2024-12-19 17:17:44,525 - INFO - Key Metrics:
+2024-12-19 17:17:44,525 - INFO - {
+  "market_cap": 122748781882,
+  "margins": {
+    "gross": 0.2912356619890293,
+    "operating": 0.10701277425331508,
+    "net": 0.08543125647025246
+  },
+  "multiples": {
+    "ev_revenue": null,
+    "pe": 17.566879686427313,
+    "ps": 1.4733959389882911
+  }
+}
+2024-12-19 17:17:44,525 - INFO - 
+PCRFY (Relevance: 0.80)
+2024-12-19 17:17:44,525 - INFO - Reasoning: Panasonic Holdings Corporation develops, manufactures, sells, and services various electrical and electronic products worldwide. They both offer a wide range of consumer electronics. However, Panasonic's product portfolio is more diverse and they are not as involved in the software and services sector.
+2024-12-19 17:17:44,525 - INFO - Key Metrics:
+2024-12-19 17:17:44,525 - INFO - {
+  "market_cap": 21849329848,
+  "margins": {
+    "gross": 0.29895474268066063,
+    "operating": 0.047340810583212975,
+    "net": 0.0399295064407776
+  },
+  "multiples": {
+    "ev_revenue": null,
+    "pe": 10.61907418385947,
+    "ps": 0.4241261422848239
+  }
+}
+2024-12-19 17:17:44,525 - INFO - 
+GPRO (Relevance: 0.70)
+2024-12-19 17:17:44,525 - INFO - Reasoning: GoPro, Inc. develops and sells cameras, mountable and wearable accessories, and subscription services and software. They both offer consumer electronics and related software and services. However, GoPro is more focused on cameras and related accessories, and does not offer a broad range of consumer electronics like Apple.
+2024-12-19 17:17:44,525 - INFO - Key Metrics:
+2024-12-19 17:17:44,526 - INFO - {
+  "market_cap": 173139317,
+  "margins": {
+    "gross": 0.3400237273872754,
+    "operating": -0.11008235389967311,
+    "net": -0.4436753566641481
+  },
+  "multiples": {
+    "ev_revenue": null,
+    "pe": -0.4254061246975132,
+    "ps": 0.1932334725801357
+  }
+}
+2024-12-19 17:17:44,526 - INFO - 
+VZIO (Relevance: 0.60)
+2024-12-19 17:17:44,526 - INFO - Reasoning: VIZIO Holding Corp. provides smart televisions, sound bars, and accessories. They both offer consumer electronics and related software and services. However, VIZIO is more focused on televisions and sound bars, and does not offer a broad range of consumer electronics like Apple.
+2024-12-19 17:17:44,526 - INFO - Key Metrics:
+2024-12-19 17:17:44,526 - INFO - {
+  "market_cap": 2298431739,
+  "margins": {
+    "gross": 0.22093758987633016,
+    "operating": -0.013517400057520852,
+    "net": 0.0010353753235547887
+  },
+  "multiples": {
+    "ev_revenue": null,
+    "pe": 1271.2,
+    "ps": 1.3220775030198446
+  }
+}
+2024-12-19 17:17:44,526 - INFO - 
+Peer Group Summary:
+2024-12-19 17:17:44,526 - INFO - {
+  "avg_market_cap": 54629126794.6,
+  "avg_margins": {
+    "gross": 0.28847747678446495,
+    "operating": 0.027553321026529836,
+    "net": -0.046369592391862155
+  },
+  "avg_multiples": {
+    "pe": 263.3054854864033,
+    "ps": 0.9772457991722773
+  }
+}
+2024-12-19 17:17:44,526 - INFO - 
+Analysis Summary:
+2024-12-19 17:17:44,526 - INFO - The selected peer companies are all involved in the consumer electronics industry, offering a range of products and services that overlap with Apple's. They were selected based on their business model, revenue sources, market position, and competitive overlap with Apple. However, none of them perfectly match Apple's unique combination of hardware, software, and services, hence the relevance scores are less than 1.

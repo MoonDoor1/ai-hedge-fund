@@ -1,0 +1,5 @@
+2024-12-19 17:11:56,414 - INFO - Starting Peer Analysis Test...
+2024-12-19 17:11:56,414 - INFO - 
+=== Testing Complete Peer Analysis for AAPL ===
+2024-12-19 17:12:37,200 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-12-19 17:12:47,290 - ERROR - Analysis failed: Peer analysis failed: unsupported operand type(s) for +: 'int' and 'NoneType'

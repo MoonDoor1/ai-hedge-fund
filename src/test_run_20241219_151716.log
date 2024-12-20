@@ -1,0 +1,34 @@
+2024-12-19 15:17:16,309 - INFO - Starting Component Tests...
+2024-12-19 15:17:16,309 - INFO - 
+=== Testing Peer Analysis for AAPL ===
+2024-12-19 15:17:16,309 - INFO - 
+1. Testing Initial Peer List:
+2024-12-19 15:17:17,078 - INFO - 
+Found 14 initial peers
+2024-12-19 15:17:17,079 - INFO - 
+Peer List:
+2024-12-19 15:17:17,079 - INFO - [
+  "LPL",
+  "SNEJF",
+  "PCRFY",
+  "SONO",
+  "VZIO",
+  "MICS",
+  "WLDSW",
+  "KOSS",
+  "GPRO",
+  "SONY",
+  "UEIC",
+  "HEAR",
+  "VUZI",
+  "WLDS"
+]
+2024-12-19 15:17:17,079 - INFO - 
+2. Testing Peer Data Enrichment:
+2024-12-19 15:17:27,321 - INFO - 
+3. Testing LLM Peer Validation:
+2024-12-19 15:17:27,322 - INFO - 
+Validated Peers:
+2024-12-19 15:17:27,322 - INFO - {
+  "error": "LLM validation failed: Invalid format specifier ' \"symbol\",\n                        \"relevance_score\": float (0-1),\n                        \"reasoning\": \"explanation\"\n                    ' for object of type 'str'"
+}

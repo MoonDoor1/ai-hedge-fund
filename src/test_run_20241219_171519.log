@@ -1,0 +1,47 @@
+2024-12-19 17:15:19,996 - INFO - Starting Peer Analysis Test...
+2024-12-19 17:15:19,996 - INFO - 
+=== Testing Complete Peer Analysis for AAPL ===
+2024-12-19 17:15:19,996 - INFO - 
+Starting peer analysis for AAPL
+2024-12-19 17:15:19,996 - INFO - 
+1. Getting initial peers...
+2024-12-19 17:15:20,776 - INFO - Found 14 initial peers: ['LPL', 'SNEJF', 'PCRFY', 'SONO', 'VZIO', 'MICS', 'WLDSW', 'KOSS', 'GPRO', 'SONY', 'UEIC', 'HEAR', 'VUZI', 'WLDS']
+2024-12-19 17:15:20,777 - INFO - 
+2. Validating peers with LLM...
+2024-12-19 17:15:52,770 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-12-19 17:15:52,777 - INFO - LLM selected peers: ['SNEJF', 'SONY', 'PCRFY', 'GPRO', 'VZIO']
+2024-12-19 17:15:52,777 - INFO - 
+3. Enriching peer data...
+2024-12-19 17:16:02,380 - INFO - Enriched data received for 5 peers
+2024-12-19 17:16:02,380 - INFO - 
+4. Calculating metrics summary...
+2024-12-19 17:16:02,380 - INFO - Checking peer data validity...
+2024-12-19 17:16:02,380 - INFO - 
+Validating data for SNEJF:
+2024-12-19 17:16:02,380 - INFO - Market Cap: 126075951187
+2024-12-19 17:16:02,381 - INFO - Margins: {'gross': 0.2912356619890293, 'operating': 0.10701277425331508, 'net': 0.08543125647025246}
+2024-12-19 17:16:02,381 - INFO - Multiples: {'ev_revenue': None, 'pe': 17.566879686427313, 'ps': 1.4733959389882911}
+2024-12-19 17:16:02,381 - INFO - 
+Validating data for SONY:
+2024-12-19 17:16:02,381 - INFO - Market Cap: 122748781882
+2024-12-19 17:16:02,381 - INFO - Margins: {'gross': 0.2912356619890293, 'operating': 0.10701277425331508, 'net': 0.08543125647025246}
+2024-12-19 17:16:02,381 - INFO - Multiples: {'ev_revenue': None, 'pe': 17.566879686427313, 'ps': 1.4733959389882911}
+2024-12-19 17:16:02,381 - INFO - 
+Validating data for PCRFY:
+2024-12-19 17:16:02,381 - INFO - Market Cap: 21849329848
+2024-12-19 17:16:02,382 - INFO - Margins: {'gross': 0.29895474268066063, 'operating': 0.047340810583212975, 'net': 0.0399295064407776}
+2024-12-19 17:16:02,382 - INFO - Multiples: {'ev_revenue': None, 'pe': 10.61907418385947, 'ps': 0.4241261422848239}
+2024-12-19 17:16:02,382 - INFO - 
+Validating data for GPRO:
+2024-12-19 17:16:02,382 - INFO - Market Cap: 173139317
+2024-12-19 17:16:02,382 - INFO - Margins: {'gross': 0.3400237273872754, 'operating': -0.11008235389967311, 'net': -0.4436753566641481}
+2024-12-19 17:16:02,382 - INFO - Multiples: {'ev_revenue': None, 'pe': -0.4254061246975132, 'ps': 0.1932334725801357}
+2024-12-19 17:16:02,382 - INFO - 
+Validating data for VZIO:
+2024-12-19 17:16:02,382 - INFO - Market Cap: 2298431739
+2024-12-19 17:16:02,382 - INFO - Margins: {'gross': 0.22093758987633016, 'operating': -0.013517400057520852, 'net': 0.0010353753235547887}
+2024-12-19 17:16:02,382 - INFO - Multiples: {'ev_revenue': None, 'pe': 1271.2, 'ps': 1.3220775030198446}
+2024-12-19 17:16:02,382 - INFO - 
+Found 0 valid peers out of 5 total
+2024-12-19 17:16:02,382 - ERROR - No peers had complete metrics
+2024-12-19 17:16:02,383 - ERROR - Analysis failed: No valid peer data available for comparison

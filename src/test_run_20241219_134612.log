@@ -1,0 +1,237 @@
+2024-12-19 13:46:12,921 - INFO - Starting Component Tests...
+2024-12-19 13:46:12,921 - INFO - 
+=== Testing Sector Analysis Components for AAPL ===
+2024-12-19 13:46:12,921 - INFO - 
+1. Testing Company Classification:
+2024-12-19 13:46:13,347 - INFO - {
+  "sector": "Technology",
+  "industry": "Consumer Electronics",
+  "company_name": "Apple Inc.",
+  "exchange": "NASDAQ Global Select"
+}
+2024-12-19 13:46:13,348 - INFO - 
+2. Testing Peer Companies:
+2024-12-19 13:46:13,717 - INFO - {
+  "peers": [
+    "LPL",
+    "SNEJF",
+    "PCRFY",
+    "SONO",
+    "VZIO",
+    "MICS",
+    "WLDSW",
+    "KOSS",
+    "GPRO",
+    "SONY",
+    "UEIC",
+    "HEAR",
+    "VUZI",
+    "WLDS"
+  ],
+  "total_peers": 14
+}
+2024-12-19 13:46:13,717 - INFO - 
+3. Testing Revenue Multiple:
+2024-12-19 13:46:14,681 - INFO - {
+  "price_to_sales": 9.680204165867504,
+  "market_cap": 3779403474000,
+  "pe_ratio": 41.12,
+  "shares_outstanding": 15115800000
+}
+2024-12-19 13:46:14,681 - INFO - 
+4. Testing Peer Metrics:
+2024-12-19 13:46:28,155 - INFO - {
+  "peer_metrics": [
+    {
+      "symbol": "LPL",
+      "price_to_sales": 0.17781849035571345,
+      "market_cap": 3190000000,
+      "pe_ratio": -2.7
+    },
+    {
+      "symbol": "SNEJF",
+      "price_to_sales": 1.4733959389882911,
+      "market_cap": 126075951187,
+      "pe_ratio": 17.83
+    },
+    {
+      "symbol": "PCRFY",
+      "price_to_sales": 0.4241261422848239,
+      "market_cap": 21849329848,
+      "pe_ratio": 6.591549295774648
+    },
+    {
+      "symbol": "SONO",
+      "price_to_sales": 1.1530248864173085,
+      "market_cap": 1750357500,
+      "pe_ratio": -46.37
+    },
+    {
+      "symbol": "VZIO",
+      "price_to_sales": 1.3220775030198446,
+      "market_cap": 2298431739,
+      "pe_ratio": 162.14
+    },
+    {
+      "symbol": "MICS",
+      "price_to_sales": 0.045717749726491314,
+      "market_cap": 7205269,
+      "pe_ratio": -0.4966442953020134
+    },
+    {
+      "symbol": "WLDSW",
+      "price_to_sales": 9.9499375,
+      "market_cap": 265796,
+      "pe_ratio": null
+    },
+    {
+      "symbol": "KOSS",
+      "price_to_sales": 5.7374466003015465,
+      "market_cap": 69382936,
+      "pe_ratio": -61.83
+    },
+    {
+      "symbol": "GPRO",
+      "price_to_sales": 0.19411180666308783,
+      "market_cap": 173926314,
+      "pe_ratio": -0.42
+    },
+    {
+      "symbol": "SONY",
+      "price_to_sales": 1.4733959389882911,
+      "market_cap": 122956729963,
+      "pe_ratio": 17.39
+    },
+    {
+      "symbol": "UEIC",
+      "price_to_sales": 0.3730841293234106,
+      "market_cap": 142525226,
+      "pe_ratio": -5.34
+    },
+    {
+      "symbol": "HEAR",
+      "price_to_sales": 0.9989579004803404,
+      "market_cap": 325887039,
+      "pe_ratio": 52.35
+    },
+    {
+      "symbol": "VUZI",
+      "price_to_sales": 49.74837757123333,
+      "market_cap": 276058125,
+      "pe_ratio": -3.1
+    },
+    {
+      "symbol": "WLDS",
+      "price_to_sales": 9.9499375,
+      "market_cap": 4616771,
+      "pe_ratio": -0.21
+    }
+  ],
+  "sector_average": 5.930100689841606,
+  "sector_median": 1.3220775030198446,
+  "total_peers_analyzed": 14
+}
+2024-12-19 13:46:28,156 - INFO - 
+5. Testing Full Sector Analysis:
+2024-12-19 13:46:42,875 - INFO - {
+  "sector_name": "Technology",
+  "industry": "Consumer Electronics",
+  "company_metrics": {
+    "price_to_sales": 9.680204165867504,
+    "market_cap": 3778798842000,
+    "pe_ratio": 41.12,
+    "shares_outstanding": 15115800000
+  },
+  "peer_analysis": {
+    "peer_metrics": [
+      {
+        "symbol": "LPL",
+        "price_to_sales": 0.17781849035571345,
+        "market_cap": 3190000000,
+        "pe_ratio": -2.7
+      },
+      {
+        "symbol": "SNEJF",
+        "price_to_sales": 1.4733959389882911,
+        "market_cap": 126075951187,
+        "pe_ratio": 17.83
+      },
+      {
+        "symbol": "PCRFY",
+        "price_to_sales": 0.4241261422848239,
+        "market_cap": 21849329848,
+        "pe_ratio": 6.591549295774648
+      },
+      {
+        "symbol": "SONO",
+        "price_to_sales": 1.1530248864173085,
+        "market_cap": 1750357500,
+        "pe_ratio": -46.37
+      },
+      {
+        "symbol": "VZIO",
+        "price_to_sales": 1.3220775030198446,
+        "market_cap": 2298431739,
+        "pe_ratio": 162.14
+      },
+      {
+        "symbol": "MICS",
+        "price_to_sales": 0.045717749726491314,
+        "market_cap": 7205269,
+        "pe_ratio": -0.4966442953020134
+      },
+      {
+        "symbol": "WLDSW",
+        "price_to_sales": 9.9499375,
+        "market_cap": 265796,
+        "pe_ratio": null
+      },
+      {
+        "symbol": "KOSS",
+        "price_to_sales": 5.7374466003015465,
+        "market_cap": 69382936,
+        "pe_ratio": -61.83
+      },
+      {
+        "symbol": "GPRO",
+        "price_to_sales": 0.19411180666308783,
+        "market_cap": 173926314,
+        "pe_ratio": -0.42
+      },
+      {
+        "symbol": "SONY",
+        "price_to_sales": 1.4733959389882911,
+        "market_cap": 122986436832,
+        "pe_ratio": 17.39
+      },
+      {
+        "symbol": "UEIC",
+        "price_to_sales": 0.3730841293234106,
+        "market_cap": 142525226,
+        "pe_ratio": -5.34
+      },
+      {
+        "symbol": "HEAR",
+        "price_to_sales": 0.9989579004803404,
+        "market_cap": 325887039,
+        "pe_ratio": 52.35
+      },
+      {
+        "symbol": "VUZI",
+        "price_to_sales": 49.74837757123333,
+        "market_cap": 276426203,
+        "pe_ratio": -3.1
+      },
+      {
+        "symbol": "WLDS",
+        "price_to_sales": 9.9499375,
+        "market_cap": 4616771,
+        "pe_ratio": -0.21
+      }
+    ],
+    "sector_average": 5.930100689841606,
+    "sector_median": 1.3220775030198446,
+    "total_peers_analyzed": 14
+  },
+  "analysis_date": "2024-12-19"
+}

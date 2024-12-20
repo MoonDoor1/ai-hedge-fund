@@ -2389,3 +2389,49 @@ def analyze_sector_metrics(ticker: str) -> Dict:
         print(f"DEBUG - Sector analysis error: {str(e)}")
         return {"error": f"Sector analysis failed: {str(e)}"}
 
+def get_stock_screener(market_cap_min: float = None, market_cap_max: float = None, 
+                      sector: str = None, industry: str = None) -> List[Dict]:
+    """
+    Get stocks filtered by market cap, sector, industry, etc.
+    Uses /v3/stock-screener endpoint
+    """
+    params = {}
+    if market_cap_min:
+        params['marketCapMoreThan'] = market_cap_min
+    if market_cap_max:
+        params['marketCapLowerThan'] = market_cap_max
+    if sector:
+        params['sector'] = sector
+    if industry:
+        params['industry'] = industry
+        
+    return make_fmp_request("/v3/stock-screener", params)
+
+def get_enterprise_values(ticker: str) -> Dict:
+    """
+    Get enterprise value metrics for a company.
+    Uses /v3/enterprise-values endpoint
+    """
+    return make_fmp_request(f"/v3/enterprise-values/{ticker}")
+
+def get_company_profile_detailed(ticker: str) -> Dict:
+    """
+    Get detailed company profile including business description.
+    Uses /v3/profile endpoint
+    """
+    return make_fmp_request(f"/v3/profile/{ticker}")
+
+def get_financial_ratios_ttm(ticker: str) -> Dict:
+    """
+    Get trailing twelve months financial ratios.
+    Uses /v3/ratios-ttm endpoint
+    """
+    return make_fmp_request(f"/v3/ratios-ttm/{ticker}")
+
+def get_key_metrics_ttm(ticker: str) -> Dict:
+    """
+    Get trailing twelve months key metrics.
+    Uses /v3/key-metrics-ttm endpoint
+    """
+    return make_fmp_request(f"/v3/key-metrics-ttm/{ticker}")
+

@@ -1,0 +1,25 @@
+2024-12-19 15:11:49,402 - INFO - Starting Component Tests...
+2024-12-19 15:11:49,403 - INFO - 
+=== Testing Peer Analysis for AAPL ===
+2024-12-19 15:11:49,403 - INFO - 
+1. Testing Initial Peer List:
+2024-12-19 15:11:50,206 - INFO - 
+Found 14 initial peers
+2024-12-19 15:11:50,206 - INFO - 
+Peer List:
+2024-12-19 15:11:50,206 - INFO - [
+  "LPL",
+  "SNEJF",
+  "PCRFY",
+  "SONO",
+  "VZIO",
+  "MICS",
+  "WLDSW",
+  "KOSS",
+  "GPRO",
+  "SONY",
+  "UEIC",
+  "HEAR",
+  "VUZI",
+  "WLDS"
+]

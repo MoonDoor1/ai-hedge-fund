@@ -1,0 +1,5 @@
+2024-12-19 17:13:34,283 - INFO - Starting Peer Analysis Test...
+2024-12-19 17:13:34,283 - INFO - 
+=== Testing Complete Peer Analysis for AAPL ===
+2024-12-19 17:14:12,308 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-12-19 17:14:22,349 - ERROR - Analysis failed: No valid peer data available for comparison
